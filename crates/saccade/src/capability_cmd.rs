@@ -141,6 +141,15 @@ pub(crate) fn catalogue() -> Value {
         "export-inputs/export script and calibrate provide frozen parity/holdout qualification; runtime evidence still required",
     );
     add(
+        "critical-text",
+        "critical-text --policy; --a-source --b-source or --ocr",
+        "equal-scale rasters, frozen critical-region/string policy and bound text observations",
+        vec![],
+        "available_imports",
+        "Do every declared critical string and pixel threshold survive?",
+        "source imports work on stock; cached OCR needs ocr/runtime/models; no human readability or semantic correctness guarantee",
+    );
+    add(
         "text",
         "text; PP-OCRv5 default with ocr, or --a-source --b-source",
         "images plus image-bound observations",

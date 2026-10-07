@@ -117,3 +117,6 @@ runs constructed fixture tests only. MCP `saccade_general/document_text` mirrors
 the request-bound fixture path under the normal file-root/output checks; tool
 inputs grant no provider execution authority. Page selection must be exact; missing, duplicate,
 out-of-order or unrequested pages fail closed.
+
+For required strings and pixel thresholds in declared regions, use the
+[critical text gate](critical-text.md), including the stock source route.

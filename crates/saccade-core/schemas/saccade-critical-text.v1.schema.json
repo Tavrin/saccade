@@ -1,0 +1,647 @@
+{
+  "$defs": {
+    "Node": {
+      "additionalProperties": false,
+      "description": "One visible/semantic node exported by the capture producer.",
+      "properties": {
+        "bounds": {
+          "description": "x,y,width,height in capture pixels; omitted when unavailable.",
+          "items": {
+            "format": "double",
+            "type": "number"
+          },
+          "maxItems": 4,
+          "minItems": 4,
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "disclosure": {
+          "default": false,
+          "description": "Explicit disclosure/footnote declaration from the source producer.",
+          "type": "boolean"
+        },
+        "id": {
+          "description": "Stable source ID, never matched by approximate text.",
+          "type": "string"
+        },
+        "keyboard_order": {
+          "description": "Producer keyboard traversal ordinal; omitted for nonfocusable nodes.",
+          "format": "uint32",
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "ocr_confidence": {
+          "description": "OCR confidence, retained as observation rather than probability/proof.",
+          "format": "double",
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "reading_order": {
+          "description": "Authoritative producer reading ordinal; never geometric top-to-bottom order.",
+          "format": "uint32",
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "role": {
+          "default": "",
+          "description": "Producer-declared role, not an OCR inference.",
+          "type": "string"
+        },
+        "text": {
+          "description": "Exact Unicode content; prices and identifiers are not normalized.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "text"
+      ],
+      "type": "object"
+    },
+    "Observation": {
+      "additionalProperties": false,
+      "description": "Literal observation with absent/uncertain evidence retained.",
+      "properties": {
+        "accepted": {
+          "description": "True/false only when the evidence supports comparison.",
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "assurance": {
+          "description": "source_fact, uncertain_ocr or unavailable.",
+          "type": "string"
+        },
+        "reasons": {
+          "description": "Missing/ambiguous geometry, coverage or confidence reasons.",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "text": {
+          "description": "Exact Unicode text from one wholly contained observation; never synthesized whitespace.",
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "assurance",
+        "reasons"
+      ],
+      "type": "object"
+    },
+    "OcrEvidence": {
+      "additionalProperties": false,
+      "description": "Optional OCR evidence, isolated from pixel measurements.",
+      "properties": {
+        "agrees_with_baseline": {
+          "description": "Exact baseline agreement, absent without comparable observations.",
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "reason": {
+          "description": "Adapter identity or explicit missing-evidence reason.",
+          "type": "string"
+        },
+        "state": {
+          "$ref": "#/$defs/State2",
+          "description": "unavailable, candidates, legible (agreement) or illegible (disagreement)."
+        },
+        "text": {
+          "description": "Exact observed Unicode scalars; inert data.",
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "state",
+        "reason"
+      ],
+      "type": "object"
+    },
+    "Policy": {
+      "additionalProperties": false,
+      "description": "Reusable caller-owned policy; no domain-specific string normalization.",
+      "properties": {
+        "dimensions": {
+          "description": "Exact capture scale required for the declared rectangles.",
+          "items": {
+            "format": "uint32",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "maxItems": 2,
+          "minItems": 2,
+          "type": "array"
+        },
+        "minimum_ocr_confidence": {
+          "description": "Minimum retained OCR confidence, uncalibrated; does not apply to source facts.",
+          "format": "double",
+          "type": "number"
+        },
+        "regions": {
+          "description": "1..64 critical regions, all required.",
+          "items": {
+            "$ref": "#/$defs/Region"
+          },
+          "type": "array"
+        },
+        "schema": {
+          "const": "saccade-critical-text-policy.v1",
+          "description": "Versioned policy discriminator.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "schema",
+        "dimensions",
+        "minimum_ocr_confidence",
+        "regions"
+      ],
+      "type": "object"
+    },
+    "Policy2": {
+      "additionalProperties": false,
+      "description": "Frozen thresholds in physical capture pixels.",
+      "properties": {
+        "minimum_contrast": {
+          "description": "WCAG-style relative luminance ratio (not compliance certification).",
+          "format": "double",
+          "type": "number"
+        },
+        "minimum_sharpness": {
+          "description": "Minimum normalized adjacent-pixel edge step.",
+          "format": "double",
+          "type": "number"
+        },
+        "minimum_stroke_px": {
+          "description": "Minimum stroke run width in pixels.",
+          "format": "double",
+          "type": "number"
+        },
+        "minimum_x_height_px": {
+          "description": "Minimum component body-height proxy in sampled pixels.",
+          "format": "double",
+          "type": "number"
+        }
+      },
+      "required": [
+        "minimum_contrast",
+        "minimum_x_height_px",
+        "minimum_sharpness",
+        "minimum_stroke_px"
+      ],
+      "type": "object"
+    },
+    "Rates": {
+      "description": "Text error-rate measurement retains raw edit counts and denominators.",
+      "properties": {
+        "cer": {
+          "description": "Character error rate, None for an empty reference (never silently zero).",
+          "format": "double",
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "character_edits": {
+          "description": "Unicode scalar edit count (Latin accents are retained).",
+          "format": "uint",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "reference_characters": {
+          "description": "Reference Unicode scalar count.",
+          "format": "uint",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "reference_words": {
+          "description": "Reference token count.",
+          "format": "uint",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "wer": {
+          "description": "Word error rate, None for an empty reference.",
+          "format": "double",
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "word_edits": {
+          "description": "Whitespace-token edit count.",
+          "format": "uint",
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "character_edits",
+        "reference_characters",
+        "word_edits",
+        "reference_words"
+      ],
+      "type": "object"
+    },
+    "Region": {
+      "additionalProperties": false,
+      "description": "One critical region at a frozen capture scale.",
+      "properties": {
+        "accepted_text": {
+          "description": "Exact accepted whole-region strings; explicit typography alternatives only.",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "id": {
+          "description": "Unique caller-owned identifier.",
+          "type": "string"
+        },
+        "legibility": {
+          "$ref": "#/$defs/Policy2",
+          "description": "Required pixel-legibility thresholds, applied to both captures."
+        },
+        "rect_px": {
+          "description": "x,y,width,height in physical capture pixels; captures must share dimensions.",
+          "items": {
+            "format": "uint32",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "maxItems": 4,
+          "minItems": 4,
+          "type": "array"
+        }
+      },
+      "required": [
+        "id",
+        "rect_px",
+        "accepted_text",
+        "legibility"
+      ],
+      "type": "object"
+    },
+    "RegionResult": {
+      "additionalProperties": false,
+      "description": "Independent string and pixel evidence for one required region.",
+      "properties": {
+        "id": {
+          "description": "Policy region ID.",
+          "type": "string"
+        },
+        "observations": {
+          "description": "Baseline and candidate observations, in that order.",
+          "items": {
+            "$ref": "#/$defs/Observation"
+          },
+          "maxItems": 2,
+          "minItems": 2,
+          "type": "array"
+        },
+        "pixels": {
+          "description": "Baseline and candidate pixel measurements, in that order.",
+          "items": {
+            "$ref": "#/$defs/RegionResult2"
+          },
+          "maxItems": 2,
+          "minItems": 2,
+          "type": "array"
+        },
+        "rates": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Rates"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Exact Unicode rates when both texts were observed, even for accepted variants."
+        },
+        "reasons": {
+          "description": "Reasons for failure or abstention.",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "state": {
+          "$ref": "#/$defs/State",
+          "description": "Region verdict; invalid baseline never qualifies a candidate."
+        }
+      },
+      "required": [
+        "id",
+        "state",
+        "observations",
+        "pixels",
+        "reasons"
+      ],
+      "type": "object"
+    },
+    "RegionResult2": {
+      "additionalProperties": false,
+      "description": "Measurements for one declared text region.",
+      "properties": {
+        "contrast": {
+          "description": "Actual measured background/foreground luminance ratio.",
+          "format": "double",
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "ocr": {
+          "$ref": "#/$defs/OcrEvidence",
+          "description": "Optional OCR agreement with baseline in this region."
+        },
+        "reasons": {
+          "description": "Threshold failures or abstention reasons.",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "rect_px": {
+          "description": "Region in the current capture, after proportional mapping.",
+          "items": {
+            "format": "uint32",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "maxItems": 4,
+          "minItems": 4,
+          "type": "array"
+        },
+        "region": {
+          "description": "Stable zero-based baseline region index.",
+          "format": "uint",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "sharpness": {
+          "description": "Minimum per-component normalized maximum edge step.",
+          "format": "double",
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "state": {
+          "$ref": "#/$defs/State2",
+          "description": "Pixel/optional OCR verdict with unavailable evidence kept separate."
+        },
+        "stroke_px": {
+          "description": "Minimum component lower-quartile horizontal/vertical run width.",
+          "format": "double",
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "x_height_px": {
+          "description": "Minimum measurable body-height proxy; not inferred typographic x-height.",
+          "format": "double",
+          "type": [
+            "number",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "region",
+        "rect_px",
+        "state",
+        "ocr",
+        "reasons"
+      ],
+      "type": "object"
+    },
+    "Source": {
+      "additionalProperties": false,
+      "description": "Capture-bound producer text and layout facts.",
+      "properties": {
+        "capture_sha256": {
+          "description": "Exact screenshot file SHA-256 (64 lowercase hex, like DOM region metadata).",
+          "type": "string"
+        },
+        "complete": {
+          "description": "True only if the producer declares complete captured source scope.",
+          "type": "boolean"
+        },
+        "dimensions": {
+          "description": "Capture-pixel dimensions.",
+          "items": {
+            "format": "uint32",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "maxItems": 2,
+          "minItems": 2,
+          "type": "array"
+        },
+        "kind": {
+          "description": "dom, accessibility_tree, or tesseract_tsv. Never inferred from image geometry.",
+          "type": "string"
+        },
+        "nodes": {
+          "description": "Stable producer IDs for DOM/AX; OCR IDs name geometric word slots only.",
+          "items": {
+            "$ref": "#/$defs/Node"
+          },
+          "type": "array"
+        },
+        "producer": {
+          "description": "Producer/version, or pinned OCR executable/model hashes and settings."
+        },
+        "schema": {
+          "const": "saccade-ui-source.v1",
+          "description": "saccade-ui-source.v1.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "schema",
+        "capture_sha256",
+        "dimensions",
+        "kind",
+        "producer",
+        "nodes",
+        "complete"
+      ],
+      "type": "object"
+    },
+    "State": {
+      "description": "Failures dominate insufficient evidence; only every passing region yields pass.",
+      "oneOf": [
+        {
+          "const": "pass",
+          "description": "All declared strings and pixel thresholds satisfied.",
+          "type": "string"
+        },
+        {
+          "const": "fail",
+          "description": "At least one observed string or pixel threshold failed.",
+          "type": "string"
+        },
+        {
+          "const": "insufficient_evidence",
+          "description": "Evidence cannot qualify the policy.",
+          "type": "string"
+        }
+      ]
+    },
+    "State2": {
+      "description": "Evidence states; absence of a candidate never certifies complete glyph coverage.",
+      "oneOf": [
+        {
+          "const": "candidates",
+          "description": "At least one glyph-shaped candidate needs review.",
+          "type": "string"
+        },
+        {
+          "const": "legible",
+          "description": "Pixel thresholds are satisfied in a declared text region.",
+          "type": "string"
+        },
+        {
+          "const": "illegible",
+          "description": "At least one measured threshold fails.",
+          "type": "string"
+        },
+        {
+          "const": "insufficient_evidence",
+          "description": "Evidence cannot support a positive verdict.",
+          "type": "string"
+        },
+        {
+          "const": "unavailable",
+          "description": "Optional evidence is absent.",
+          "type": "string"
+        }
+      ]
+    }
+  },
+  "$id": "https://github.com/Tavrin/saccade/crates/saccade-core/schemas/saccade-critical-text.v1.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "Full versioned evidence packet; source/OCR strings are always inert data.",
+  "properties": {
+    "image_sha256": {
+      "description": "Exact encoded baseline and candidate image SHA-256.",
+      "items": {
+        "type": "string"
+      },
+      "maxItems": 2,
+      "minItems": 2,
+      "type": "array"
+    },
+    "limitations": {
+      "description": "Explicit interpretation limits.",
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "policy": {
+      "$ref": "#/$defs/Policy",
+      "description": "Frozen effective policy."
+    },
+    "policy_sha256": {
+      "description": "Exact supplied policy bytes SHA-256.",
+      "type": "string"
+    },
+    "regions": {
+      "description": "Every declared region, including unknown evidence.",
+      "items": {
+        "$ref": "#/$defs/RegionResult"
+      },
+      "type": "array"
+    },
+    "report_id": {
+      "description": "Content-addressed transport identity, absent before emission.",
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "schema": {
+      "const": "saccade-critical-text.v1",
+      "description": "Versioned report discriminator.",
+      "type": "string"
+    },
+    "source_refs": {
+      "description": "Optional caller-supplied backlinks.",
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "source_sha256": {
+      "description": "Exact imported source bytes SHA-256, absent for executed OCR or missing evidence.",
+      "items": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "maxItems": 2,
+      "minItems": 2,
+      "type": "array"
+    },
+    "sources": {
+      "description": "Image-bound sources, including producer, kind, coverage and confidence.",
+      "items": {
+        "anyOf": [
+          {
+            "$ref": "#/$defs/Source"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      },
+      "maxItems": 2,
+      "minItems": 2,
+      "type": "array"
+    },
+    "state": {
+      "$ref": "#/$defs/State",
+      "description": "Every region is required; failures dominate unknown evidence."
+    }
+  },
+  "required": [
+    "schema",
+    "state",
+    "image_sha256",
+    "policy_sha256",
+    "source_sha256",
+    "policy",
+    "sources",
+    "regions",
+    "limitations"
+  ],
+  "title": "Report",
+  "type": "object"
+}

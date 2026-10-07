@@ -10,7 +10,7 @@ saccade inspect REPORT/saccade-report.v1.json --status fail,error,missing,new --
 saccade inspect evidence REPORT/saccade-report.v1.json --entry NAME --out EVIDENCE
 ```
 
-Read validity, performance, pagination and `data.pass_with_local_change`. Exit 1 is failure; 2 unavailable; `performance_rejected` may exit 0.
+Read validity/performance/pagination and `data.pass_with_local_change`. Exit 1 is failure; 2 unavailable; `performance_rejected` may exit 0.
 `--require-valid-arms` refuses mismatches (3) or missing identity (4); declare
 variables; inspect exceptions. Mixed records: `compare = "mapped_only"`; inspect `unmapped`/`outcomes`. [Arms](../docs/arm-validity.md).
 Identity binds samples, not approval/timing authority.
@@ -48,13 +48,13 @@ Browser/sweep masks `neutralize`; core `exclude`. Read mask/excluded-error audit
 [Comparator](../docs/choosing-a-comparison.md).
 
 `models list` shows pins; inference needs cached models/runtime and never pulls.
-Vision observations are advice, never verdict overrides.
+Vision advice never overrides verdicts.
 [Vision](../docs/wave7.md). [TrustMark](../docs/trustmark.md): `watermark --trustmark` verifies BCH payloads.
 
 [Rendering](../docs/render-evidence.md): read `required_effects[].failures`
 even at zero FLIP. Declare experiment keys; opt into spatial/layer/fixed-camera
 analysis. `experiment reference` compares noisy references; `review trial` records
-blind judgments. Share only public galleries. [Clocks](../docs/gpu-clock-mapping.md), warmup/noise;
+blind judgments. Share public galleries only. [Clocks](../docs/gpu-clock-mapping.md), warmup/noise;
 structure and preferences grant no timing authority.
 
 `analyze-media`: read section status/provenance; `--strict` rejects failures;
@@ -64,13 +64,13 @@ uncalibrated confidence/failures, never rights proof. [Media](../docs/media.md),
 [Python](../docs/python.md), [API](../docs/api.md).
 Pinned SigLIP 2; updates keep the model; prune only complete archives.
 
-[OCR](../docs/text.md): `ocr` enables local PP-OCRv5; keep accents/source hashes;
-CTC confidence is uncalibrated. `ocr-provider`
-adds opt-in Mistral image/PDF text via bound fixtures or authorized,
-egress/spend-capped calls.
+[Critical text](../docs/critical-text.md): every region required; nonzero fails.
 
-Producers: `schema list|get|path`, `perf validate FILE --json`.
-Field evidence: `render-evidence`, `noise build REPEATS...`, `compare --export-maps --noise-from REPEATS... --require-scope`.
+[OCR](../docs/text.md): PP-OCRv5 (`ocr`); keep accents/source hashes; CTC confidence uncalibrated.
+`ocr-provider`: bound Mistral image/PDF fixtures or authorized egress/spend-capped calls.
+
+`schema list|get|path`, `perf validate FILE --json`.
+Evidence: `render-evidence`, `noise build REPEATS...`, `compare --export-maps --noise-from REPEATS... --require-scope`.
 [Arm policies](../docs/arm-validity.md): null is a value; `--ignore` waives missing
 fields; `--allow-unreached` requires exact observations; maps select `record_files`.
 

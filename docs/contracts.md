@@ -200,6 +200,8 @@ The last three names appear only when the corresponding feature is compiled in.
 - [saccade-config.v1.schema.json](../crates/saccade-core/schemas/saccade-config.v1.schema.json) — saccade-config.v1
 - [saccade-constructed-oracle.v1.schema.json](../crates/saccade-core/schemas/saccade-constructed-oracle.v1.schema.json) — saccade-constructed-oracle.v1
 - [saccade-constructed-truth.v1.schema.json](../crates/saccade-core/schemas/saccade-constructed-truth.v1.schema.json) — saccade-constructed-truth.v1
+- [saccade-critical-text-policy.v1.schema.json](../crates/saccade-core/schemas/saccade-critical-text-policy.v1.schema.json) — Policy
+- [saccade-critical-text.v1.schema.json](../crates/saccade-core/schemas/saccade-critical-text.v1.schema.json) — Report
 - [saccade-crop-check.v1.schema.json](../crates/saccade-core/schemas/saccade-crop-check.v1.schema.json) — CropReport
 - [saccade-crop-check.v2.schema.json](../crates/saccade-core/schemas/saccade-crop-check.v2.schema.json) — CropReport
 - [saccade-decide-result.v1.schema.json](../crates/saccade-core/schemas/saccade-decide-result.v1.schema.json) — saccade-decide-result.v1

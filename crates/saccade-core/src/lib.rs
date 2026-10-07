@@ -199,4 +199,6 @@ pub mod frame_map;
 pub mod model_config;
 
 // O12/O17
+/// Required region/string gates independent of global image averages.
+pub mod critical_text;
 pub mod text_quality;

@@ -44,6 +44,7 @@ Commands:
   text                Compare image-bound OCR/text observations and literal expected strings
   tofu                Triage pixel shapes resembling missing glyphs (requires text-quality)
   text-legibility     Measure text legibility across supplied variants (requires text-quality)
+  critical-text       Gate exact critical strings and pixel legibility in declared regions
   similar             Cosine similarity with an explicitly pinned optional ONNX export
   index               Build or query a streaming exact flat embedding index
   hash                Compute perceptual hashes without changing originals
@@ -1227,6 +1228,33 @@ Options:
 
   -h, --help
           Print help
+
+Global options:
+      --allow-out-near-captures  Silence warnings when --out is next to capture metadata
+      --record-absolute-paths    Opt in to absolute local paths in reports and machine-readable output
+```
+
+## saccade critical-text
+
+```text
+Gate exact critical strings and pixel legibility in declared regions
+
+Usage: saccade critical-text [OPTIONS] --policy <POLICY> <BASELINE> <CANDIDATE>
+
+Arguments:
+  <BASELINE>
+  <CANDIDATE>
+
+Options:
+      --policy <POLICY>              Frozen saccade-critical-text-policy.v1 region/string thresholds
+      --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
+      --a-source <A_SOURCE>          Image-bound baseline saccade-ui-source.v1 (works on stock builds)
+      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
+      --b-source <B_SOURCE>          Image-bound candidate source; requires --a-source
+      --ocr                          Execute cached local OCR; never downloads (requires ocr feature/runtime/models)
+      --out <OUT>                    Optional report directory, must be empty and outside inputs
+      --json
+  -h, --help                         Print help
 
 Global options:
       --allow-out-near-captures  Silence warnings when --out is next to capture metadata

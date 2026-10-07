@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Add a stock-build critical text region/string gate, versioned policy/report and
+  generated OFL glyph-edit pack with app, figure and document proofs.
+
 ## 0.2.7 (2026-10-07)
 
 - Correct the quality-report and geometry v1 schemas to include the existing
