@@ -12,11 +12,6 @@ Exit 0 for compare/identity means no image regression; inspect `performance` for
 Inspection, review, rank and ablation completion grant no acceptance authority.
 Exit 2 means the operation cannot run. Demo intentionally exits 1.
 
-Actual generation binary (reference header above describes all features):
-
-Generation: `python3 scripts/gen-docs.py --allow-missing-imgtune-avif --preserve-all-features-header`.
-Compiled features: `ai`, `assist`, `compression`, `credentials`, `dense-motion`, `documents`, `embeddings`, `evaluation`, `geo`, `geometry`, `graphics`, `local-models`, `local-vlm`, `mcp`, `media-http`, `ocr`, `ocr-provider`, `parallel`, `prechecks`, `print`, `products`, `schema`, `semantic-regions`, `text-quality`, `vision-providers`, `workbench`.
-
 ## saccade
 
 ```text
@@ -891,13 +886,24 @@ Arguments:
   <DECLARATION>  saccade-derivatives.v1: source boxes, crops, display sizes and rendition paths
 
 Options:
-      --out <OUT>                    New empty directory outside inputs; writes HTML, PNG and manifest-bound JSON
-      --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
-      --faces-report <FACES_REPORT>  Optional image-bound face receipt; explicitly labelled replay
-      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
-      --detector <DETECTOR>          Cached face model ID; uses shared model config, never downloads [default: yunet-2026may]
+      --out <OUT>
+          New empty directory outside inputs; writes HTML, PNG and manifest-bound JSON
+      --require-signed-approval
+          Require externally signed approvals and verify baseline approval consumers
+      --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
+          External OpenSSH allowed-signers file (cannot override a required policy)
+      --faces-report <FACES_REPORT>
+          Optional image-bound face receipt; explicitly labelled replay
+      --detector <DETECTOR>
+          Cached face model ID; uses shared model config, never downloads [default: yunet-2026may]
+      --source-ref <SOURCE_REF>
+          External capture URI/key (repeatable); recorded in generated reports
       --json
-  -h, --help                         Print help
+
+      --report-index <REPORT_INDEX>
+          Shared report index destination (default reports/index.jsonl next to each report, inside --out)
+  -h, --help
+          Print help
 
 Global options:
       --allow-out-near-captures  Silence warnings when --out is next to capture metadata
@@ -1774,12 +1780,16 @@ Arguments:
   <RECORD>
 
 Options:
-      --json
-          Emit the versioned conformance result, including stable failure codes
+      --legacy-map <LEGACY_MAP>
+          Explicit versioned mapping of retained historical fields (TOML or JSON)
       --require-signed-approval
           Require externally signed approvals and verify baseline approval consumers
       --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
           External OpenSSH allowed-signers file (cannot override a required policy)
+      --archive
+          Check an archive tree with bounded deterministic rows; requires --legacy-map
+      --json
+          Emit the versioned conformance result, including stable failure codes
       --source-ref <SOURCE_REF>
           External capture URI/key (repeatable); recorded in generated reports
       --report-index <REPORT_INDEX>
@@ -2520,14 +2530,26 @@ Arguments:
   <BASELINE>  Baseline directory (bounded 8-bit raster images); never modified
 
 Options:
-      --catalogue <CATALOGUE>          Frozen saccade-sensitivity-catalogue.v1 injection catalogue
-      --source-ref <SOURCE_REF>        External capture URI/key (repeatable); recorded in generated reports
-      --config <CONFIG>                Configured compare policy, including overrides and hotspot_fail cluster guard
-      --report-index <REPORT_INDEX>    Shared report index destination (default reports/index.jsonl next to each report, inside --out)
-      --before-config <BEFORE_CONFIG>  Optional previous policy; evaluate the identical frozen controls under both policies
-      --out <OUT>                      Empty output directory outside baseline, catalogue, patches and policy inputs
+      --catalogue <CATALOGUE>
+          Frozen saccade-sensitivity-catalogue.v1 injection catalogue
+      --require-signed-approval
+          Require externally signed approvals and verify baseline approval consumers
+      --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
+          External OpenSSH allowed-signers file (cannot override a required policy)
+      --config <CONFIG>
+          Configured compare policy, including overrides and hotspot_fail cluster guard
+      --before-config <BEFORE_CONFIG>
+          Optional previous policy; evaluate the identical frozen controls under both policies
+      --source-ref <SOURCE_REF>
+          External capture URI/key (repeatable); recorded in generated reports
+      --out <OUT>
+          Empty output directory outside baseline, catalogue, patches and policy inputs
+      --report-index <REPORT_INDEX>
+          Shared report index destination (default reports/index.jsonl next to each report, inside --out)
       --json
-  -h, --help                           Print help
+
+  -h, --help
+          Print help
 
 Global options:
       --allow-out-near-captures  Silence warnings when --out is next to capture metadata
@@ -6409,12 +6431,22 @@ Arguments:
   <CANDIDATE>  Candidate saccade-frame-map.v1
 
 Options:
-      --mask <MASK>                  Static binary inclusion region, shared mask:PATH grammar
-      --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
+      --mask <MASK>
+          Static binary inclusion region, shared mask:PATH grammar
+      --require-signed-approval
+          Require externally signed approvals and verify baseline approval consumers
+      --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
+          External OpenSSH allowed-signers file (cannot override a required policy)
       --out <OUT>
-      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
+
       --json
-  -h, --help                         Print help
+
+      --source-ref <SOURCE_REF>
+          External capture URI/key (repeatable); recorded in generated reports
+      --report-index <REPORT_INDEX>
+          Shared report index destination (default reports/index.jsonl next to each report, inside --out)
+  -h, --help
+          Print help
 
 Global options:
       --allow-out-near-captures  Silence warnings when --out is next to capture metadata
@@ -6429,16 +6461,30 @@ Construct known negatives and calibrate separate scorer trust by class
 Usage: saccade experiment calibrate-degradations [OPTIONS] --positive <POSITIVE> --out <OUT>
 
 Options:
-      --positive <POSITIVE>          Independent positive frame maps; repeat this flag for multiple sources
-      --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
-      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
-      --strengths <STRENGTHS>        Comma-separated strengths in (0,1] [default: 0.5,1]
-      --seed <SEED>                  [default: 42]
-      --threshold <THRESHOLD>        Required lower exact 95% strict-win bound [default: 0.8]
-      --scores <SCORES>              Optional higher-is-better external scores, bound to this generated manifest SHA256
-      --out <OUT>                    New output directory; refuses to overwrite generated evidence
+      --positive <POSITIVE>
+          Independent positive frame maps; repeat this flag for multiple sources
+      --require-signed-approval
+          Require externally signed approvals and verify baseline approval consumers
+      --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
+          External OpenSSH allowed-signers file (cannot override a required policy)
+      --strengths <STRENGTHS>
+          Comma-separated strengths in (0,1] [default: 0.5,1]
+      --seed <SEED>
+          [default: 42]
+      --source-ref <SOURCE_REF>
+          External capture URI/key (repeatable); recorded in generated reports
+      --report-index <REPORT_INDEX>
+          Shared report index destination (default reports/index.jsonl next to each report, inside --out)
+      --threshold <THRESHOLD>
+          Required lower exact 95% strict-win bound [default: 0.8]
+      --scores <SCORES>
+          Optional higher-is-better external scores, bound to this generated manifest SHA256
+      --out <OUT>
+          New output directory; refuses to overwrite generated evidence
       --json
-  -h, --help                         Print help
+
+  -h, --help
+          Print help
 
 Global options:
       --allow-out-near-captures  Silence warnings when --out is next to capture metadata

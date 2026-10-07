@@ -9,7 +9,7 @@ saccade inspect REPORT_JSON --status fail,error --limit 5 --json
 saccade inspect evidence REPORT_JSON --entry NAME --out EVIDENCE
 ```
 
-Read validity/performance/page, `data.pass_with_local_change`. Exits: 1 fail, 2 unavailable; `performance_rejected` may exit 0.
+Read validity/performance, `data.pass_with_local_change`. Exits: 1 fail, 2 unavailable; `performance_rejected` may exit 0.
 `--require-valid-arms`: mismatch (3), missing identity (4); declare variables; inspect exceptions. Mixed: `compare = "mapped_only"`; inspect `unmapped`/`outcomes`. [Arms](../docs/arm-validity.md).
 Identity binds samples, not approval/timing.
 
@@ -41,7 +41,7 @@ Browser/sweep masks `neutralize`; core `exclude`. Read exclusion audits.
 `notify`: authorization/credentials. [Products](../docs/wave5-mcp.md).
 
 `capabilities --json`: caps; `compare --question`: no fallback.
-`--align`/`--resample`: geometry exclusions; `hash`/`dedupe`: candidates, never delete.
+`--align`/`--resample`: exclusions; `hash`/`dedupe`: candidates, never delete.
 `similar`/`index`: pins; `index export-inputs|calibrate`: parity/holdout.
 `text`: source-bound. [Pages](../docs/documents.md): multipage needs `--page-map`.
 [timed-text](../docs/timed-text.md). `assess`: content-dependent;
@@ -61,7 +61,7 @@ structure/preferences grant no timing authority.
 unsigned credits, draft descriptions. `keyframes`: ffmpeg/ffprobe or frames;
 `find-usage`: uncalibrated, failures shown, no rights proof.
 [Media](../docs/media.md), [Python](../docs/python.md), [API](../docs/api.md).
-SigLIP 2 pinned; updates retain model; prune complete archives only.
+SigLIP 2 pinned; retain model; prune complete archives only.
 
 [Text](../docs/critical-text.md): all required.
 
@@ -72,10 +72,10 @@ SigLIP 2 pinned; updates retain model; prune complete archives only.
 `noise build REPEATS...`, `compare --export-maps --noise-from REPEATS... --require-scope`.
 [Arm policies](../docs/arm-validity.md): null is a value; `--ignore` waives missing fields; `--allow-unreached` requires exact observations; maps select `record_files`.
 
-G12 dry-run: fixture; live needs reviewed ceilings. [Qualification](../docs/assist-qualification.md).
+[G12](../docs/assist-qualification.md): fixture; live needs reviewed ceilings.
 
 [Experiments](../docs/experiments-wave11.md): timing/settling.
-[Motion](../docs/motion-stats.md): `experiment motion-stats|calibrate-degradations`.
+[Motion stats/calibration](../docs/motion-stats.md).
 [Animation](../docs/animated-lod.md).
 
 [Print](../docs/print.md): `print`; no press approval.
@@ -83,6 +83,6 @@ G12 dry-run: fixture; live needs reviewed ceilings. [Qualification](../docs/assi
 [Rasters](../docs/raster.md): `geo`.
 
 [Replay](../docs/replay.md): `replay pack|verify`.
-[Optical codes](../docs/optical-code.md): independent decode/payload gates.
+[Optical codes](../docs/optical-code.md): decode/payload gates.
 [Sensitivity](../docs/sensitivity.md).
 [Derivatives](../docs/derivative-sheets.md).

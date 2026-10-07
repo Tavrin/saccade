@@ -151,3 +151,5 @@ The two formats and all image bytes are procedural fixtures, dedicated to
 CC0-1.0. Regenerate with `python3 scripts/gen-capture-legacy-kit.py` and check
 with `--check`. Acceptance covers offline adapters and filesystem refusals,
 not live producer execution or private archive qualification.
+
+Archive JSON rows serialize `directory` with forward-slash separators on every platform.

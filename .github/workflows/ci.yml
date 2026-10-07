@@ -3,7 +3,7 @@ name: CI
 on:
   workflow_dispatch:
   push:
-    branches: [main, integration/train-1, integration/train-2, integration/train-3]
+    branches: [main, integration/train-1, integration/train-2, integration/train-3, integration/train-4]
   pull_request:
 
 permissions:
@@ -72,6 +72,10 @@ jobs:
           toolchain: stable
           components: clippy
       - uses: Swatinem/rust-cache@49a0bdc70d2e1b713ca9e2869b211fcce03d3c1c # v2
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: '3.12'
+      - run: python3 -m pip install Pillow==10.2.0
       - run: cargo clippy --workspace --all-targets --locked -- -D warnings
       - run: cargo test --workspace --locked --no-fail-fast
 
@@ -98,6 +102,12 @@ jobs:
           sudo apt-get update
           sudo apt-get install --yes libdav1d-dev pkg-config
           pkg-config --atleast-version=1.3.0 dav1d
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: '3.12'
+      - name: Install sensitivity fixture dependencies
+        if: matrix.package == 'saccade'
+        run: python3 -m pip install Pillow==10.2.0
       - name: Install text-quality fixture fonts
         if: matrix.flags == '--all-features'
         run: |

@@ -58,7 +58,9 @@ pub(crate) fn run(args: Args) -> Result<u8, CliError> {
         }
         if json {
             let value = if archive {
-                serde_json::json!({"directory":path,"report":report})
+                // JSON archive rows use portable separators on every platform.
+                let directory = saccade_core::paths::portable(&path);
+                serde_json::json!({"directory":directory,"report":report})
             } else {
                 serde_json::to_value(&report)?
             };
