@@ -1,5 +1,8 @@
 #!/usr/bin/env bash
 # Local, exact-revision release gates. No publishing or Git state changes.
+# Text-quality fixtures require Python 3 with Pillow and installed Linux fonts:
+# apt-get install fonts-dejavu-core fonts-noto-cjk (DejaVu covers Latin/Arabic;
+# Noto Sans CJK covers CJK). Missing fonts fail the all-features tests.
 set -uo pipefail
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$root" || exit 2

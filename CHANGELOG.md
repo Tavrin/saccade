@@ -42,6 +42,9 @@
   restated in the map's own timestamps, with an explicit `never_settled` state.
 - Add the performance sidecar kit (`examples/perf-kit`, `scripts/gen-perf-kit.py`,
   `docs/perf-kit.md`) with declared `timing ab` outcomes.
+- Add feature-gated `tofu` missing-glyph shape triage and `text-legibility`
+  per-region variant sampling evidence, with versioned schemas, explicit
+  abstention, optional cached OCR and generated multi-script fixtures.
 
 - Harden experimental assist pre-spend accounting: shared campaign reservations,
   charged and quarantined usage overruns, request-bound recorded execution receipts,

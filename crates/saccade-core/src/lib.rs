@@ -88,6 +88,9 @@ pub use report::{Entry, EntryPaths, Metric, Metrics, Properties, Report, Status,
 /// Cargo features compiled into this library. Computational modules are optional;
 /// persisted report and decision types remain available without their producers.
 pub const COMPILED_FEATURES: &[&str] = &[
+    // O12/O17
+    #[cfg(feature = "text-quality")]
+    "text-quality",
     #[cfg(feature = "assist")]
     "assist",
     #[cfg(feature = "documents")]
@@ -192,3 +195,6 @@ pub mod frame_map;
 
 /// One operator-owned model and runtime configuration shared by every surface.
 pub mod model_config;
+
+// O12/O17
+pub mod text_quality;

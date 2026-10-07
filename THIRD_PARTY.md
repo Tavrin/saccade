@@ -747,3 +747,12 @@ NumPy distribution's `licenses/LICENSE.txt`; arrays use its public Python API,
 without new Rust native dependencies. NumPy is distributed separately and its
 wheel contains its own notices. `jsonschema` 0.30 was already used by schema tests;
 the CLI now uses that same MIT-licensed dependency for embedded perf validation.
+
+## Text-quality fixture fonts (test generation only)
+
+The generated text-quality corpus uses locally installed DejaVu Sans
+(Bitstream Vera font license; DejaVu modifications are public domain) and
+Noto Sans CJK Regular (SIL Open Font License 1.1). Font files are not bundled
+or downloaded. The generator records exact SHA-256 identities and license
+names in its fixture receipt; generated synthetic images contain rendered
+output only. These are test inputs, with no added runtime dependencies.

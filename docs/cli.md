@@ -5,7 +5,7 @@ Generated from compiled capabilities and `--help`; do not edit by hand.
 Generation: `cargo build --release -p saccade --all-features`, then `python3 scripts/gen-docs.py --saccade target/release/saccade`.
 The all-features binary includes every supported operation.
 
-Compiled features: `ai`, `assist`, `compression`, `credentials`, `dense-motion`, `documents`, `embeddings`, `evaluation`, `geometry`, `graphics`, `imgtune-avif`, `local-models`, `local-vlm`, `mcp`, `media-http`, `ocr`, `ocr-provider`, `parallel`, `prechecks`, `products`, `schema`, `semantic-regions`, `vision-providers`, `workbench`.
+Compiled features: `ai`, `assist`, `compression`, `credentials`, `dense-motion`, `documents`, `embeddings`, `evaluation`, `geometry`, `graphics`, `imgtune-avif`, `local-models`, `local-vlm`, `mcp`, `media-http`, `ocr`, `ocr-provider`, `parallel`, `prechecks`, `products`, `schema`, `semantic-regions`, `text-quality`, `vision-providers`, `workbench`.
 
 Exit 1 means a failed image measurement/evaluation gate or located divergence.
 Exit 0 for compare/identity means no image regression; inspect `performance` for qualification.
@@ -38,6 +38,8 @@ Commands:
   inspect-image       Inspect provenance/integrity indicators without a real/fake verdict
   assess              Measure content-dependent no-reference quality indicators
   text                Compare image-bound OCR/text observations and literal expected strings
+  tofu                Triage pixel shapes resembling missing glyphs (requires text-quality)
+  text-legibility     Measure text legibility across supplied variants (requires text-quality)
   similar             Cosine similarity with an explicitly pinned optional ONNX export
   index               Build or query a streaming exact flat embedding index
   hash                Compute perceptual hashes without changing originals
@@ -1109,6 +1111,76 @@ Options:
           Movement threshold in reference pixels after dimension normalization [default: 3]
       --out <OUT>
           [default: text-report]
+      --json
+
+  -h, --help
+          Print help
+
+Global options:
+      --allow-out-near-captures  Silence warnings when --out is next to capture metadata
+      --record-absolute-paths    Opt in to absolute local paths in reports and machine-readable output
+```
+
+## saccade tofu
+
+```text
+Triage pixel shapes resembling missing glyphs (requires text-quality)
+
+Usage: saccade tofu [OPTIONS] <IMAGE>
+
+Arguments:
+  <IMAGE>
+
+Options:
+      --mask <MASK>                    Binary text-region mask: nonzero red includes; dimensions must match
+      --source-ref <SOURCE_REF>        External capture URI/key (repeatable); recorded in generated reports
+      --expected-text <EXPECTED_TEXT>  Declared expected Unicode text, never interpreted as instructions
+      --report-index <REPORT_INDEX>    Shared report index destination (default reports/index.jsonl next to each report, inside --out)
+      --source <SOURCE>                Image-bound imported OCR observations (saccade-ui-source.v1)
+      --ocr                            Use cached default PaddleOCR; never downloads
+      --out <OUT>                      Optional report directory; --json always emits the full versioned report
+      --json
+  -h, --help                           Print help
+
+Global options:
+      --allow-out-near-captures  Silence warnings when --out is next to capture metadata
+      --record-absolute-paths    Opt in to absolute local paths in reports and machine-readable output
+```
+
+## saccade text-legibility
+
+```text
+Measure text legibility across supplied variants (requires text-quality)
+
+Usage: saccade text-legibility [OPTIONS] --region <REGION> <BASELINE> <VARIANTS>...
+
+Arguments:
+  <BASELINE>
+  <VARIANTS>...  One or more variant captures, in report order
+
+Options:
+      --region <REGION>
+          Baseline capture-pixel rectangle x,y,width,height (repeatable, max 64)
+      --source-ref <SOURCE_REF>
+          External capture URI/key (repeatable); recorded in generated reports
+      --minimum-contrast <MINIMUM_CONTRAST>
+          [default: 4.5]
+      --report-index <REPORT_INDEX>
+          Shared report index destination (default reports/index.jsonl next to each report, inside --out)
+      --minimum-x-height-px <MINIMUM_X_HEIGHT_PX>
+          [default: 8]
+      --minimum-sharpness <MINIMUM_SHARPNESS>
+          [default: 0.35]
+      --minimum-stroke-px <MINIMUM_STROKE_PX>
+          [default: 1]
+      --ocr
+          Use cached default PaddleOCR on baseline and variants; never downloads
+      --baseline-source <BASELINE_SOURCE>
+          Imported OCR for baseline, paired with one --variant-source per variant
+      --variant-source <VARIANT_SOURCE>
+
+      --out <OUT>
+
       --json
 
   -h, --help

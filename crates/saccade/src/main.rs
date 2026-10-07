@@ -71,6 +71,8 @@ mod review_cmd;
 #[cfg(feature = "products")]
 mod sweep_cmd;
 mod text_cmd;
+// O12/O17
+mod text_quality_cmd;
 
 #[cfg(feature = "mcp")]
 mod mcp;
@@ -317,6 +319,10 @@ enum Command {
     Assess(assess_cmd::Args),
     /// Compare image-bound OCR/text observations and literal expected strings.
     Text(text_cmd::Args),
+    /// Triage pixel shapes resembling missing glyphs (requires text-quality).
+    Tofu(text_quality_cmd::TofuArgs),
+    /// Measure text legibility across supplied variants (requires text-quality).
+    TextLegibility(text_quality_cmd::LegibilityArgs),
     /// Cosine similarity with an explicitly pinned optional ONNX export.
     Similar(embedding_cmd::SimilarArgs),
     /// Build or query a streaming exact flat embedding index.
@@ -1239,6 +1245,8 @@ fn dispatch(command: Command, record_absolute_paths: bool) -> Result<u8, CliErro
         Command::InspectImage(args) => inspect_image_cmd::run(args),
         Command::Assess(args) => assess_cmd::run(args),
         Command::Text(args) => text_cmd::run(args),
+        Command::Tofu(args) => text_quality_cmd::tofu(args),
+        Command::TextLegibility(args) => text_quality_cmd::legibility(args),
         Command::Similar(args) => embedding_cmd::similar(args),
         Command::Index(args) => embedding_cmd::index(args),
         Command::Hash(args) => hash_cmd::run_hash(args),

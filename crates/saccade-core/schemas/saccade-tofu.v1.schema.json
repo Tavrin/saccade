@@ -1,0 +1,186 @@
+{
+  "$defs": {
+    "Candidate": {
+      "additionalProperties": false,
+      "description": "A glyph-shaped observation, never a font/shaping diagnosis.",
+      "properties": {
+        "confidence": {
+          "description": "Heuristic shape score in [0,1], not a calibrated probability.",
+          "format": "double",
+          "type": "number"
+        },
+        "rect_px": {
+          "description": "Absolute capture pixels [x,y,width,height].",
+          "items": {
+            "format": "uint32",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "maxItems": 4,
+          "minItems": 4,
+          "type": "array"
+        },
+        "shape": {
+          "description": "hollow_rectangle or replacement_diamond.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "rect_px",
+        "shape",
+        "confidence"
+      ],
+      "type": "object"
+    },
+    "OcrEvidence": {
+      "additionalProperties": false,
+      "description": "Optional OCR evidence, isolated from pixel measurements.",
+      "properties": {
+        "agrees_with_baseline": {
+          "description": "Exact baseline agreement, absent without comparable observations.",
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "reason": {
+          "description": "Adapter identity or explicit missing-evidence reason.",
+          "type": "string"
+        },
+        "state": {
+          "$ref": "#/$defs/State",
+          "description": "unavailable, candidates, legible (agreement) or illegible (disagreement)."
+        },
+        "text": {
+          "description": "Exact observed Unicode scalars; inert data.",
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "state",
+        "reason"
+      ],
+      "type": "object"
+    },
+    "State": {
+      "description": "Evidence states; absence of a candidate never certifies complete glyph coverage.",
+      "oneOf": [
+        {
+          "const": "candidates",
+          "description": "At least one glyph-shaped candidate needs review.",
+          "type": "string"
+        },
+        {
+          "const": "legible",
+          "description": "Pixel thresholds are satisfied in a declared text region.",
+          "type": "string"
+        },
+        {
+          "const": "illegible",
+          "description": "At least one measured threshold fails.",
+          "type": "string"
+        },
+        {
+          "const": "insufficient_evidence",
+          "description": "Evidence cannot support a positive verdict.",
+          "type": "string"
+        },
+        {
+          "const": "unavailable",
+          "description": "Optional evidence is absent.",
+          "type": "string"
+        }
+      ]
+    }
+  },
+  "$id": "https://github.com/Tavrin/saccade/crates/saccade-core/schemas/saccade-tofu.v1.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "Missing-glyph triage result.",
+  "properties": {
+    "dimensions": {
+      "description": "Capture dimensions.",
+      "items": {
+        "format": "uint32",
+        "minimum": 0,
+        "type": "integer"
+      },
+      "maxItems": 2,
+      "minItems": 2,
+      "type": "array"
+    },
+    "expected_text": {
+      "description": "Expected text, retained as declared context only.",
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "image_sha256": {
+      "description": "Exact encoded image identity.",
+      "type": "string"
+    },
+    "mask_sha256": {
+      "description": "Mask identity when supplied; nonzero includes pixels.",
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "ocr": {
+      "$ref": "#/$defs/OcrEvidence",
+      "description": "Independent optional OCR evidence."
+    },
+    "reasons": {
+      "description": "Reasons for the state and explicit detection limits.",
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "regions": {
+      "description": "Pixel candidates with capture coordinates.",
+      "items": {
+        "$ref": "#/$defs/Candidate"
+      },
+      "type": "array"
+    },
+    "report_id": {
+      "description": "Content-addressed transport report identity, absent before emission.",
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "schema": {
+      "const": "saccade-tofu.v1",
+      "description": "Versioned discriminator.",
+      "type": "string"
+    },
+    "source_refs": {
+      "description": "Caller-supplied capture backlinks, absent when not declared.",
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "state": {
+      "$ref": "#/$defs/State",
+      "description": "candidates or insufficient_evidence; never clean."
+    }
+  },
+  "required": [
+    "schema",
+    "state",
+    "image_sha256",
+    "dimensions",
+    "regions",
+    "ocr",
+    "reasons"
+  ],
+  "title": "TofuReport",
+  "type": "object"
+}

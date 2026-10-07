@@ -75,6 +75,11 @@ jobs:
           sudo apt-get update
           sudo apt-get install --yes libdav1d-dev pkg-config
           pkg-config --atleast-version=1.3.0 dav1d
+      - name: Install text-quality fixture fonts
+        if: matrix.flags == '--all-features'
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes fonts-dejavu-core fonts-noto-cjk
       - run: cargo build --locked -p ${{ matrix.package }} ${{ matrix.flags }}
       - run: cargo test --locked -p ${{ matrix.package }} ${{ matrix.flags }}
 
@@ -150,4 +155,8 @@ jobs:
           sudo apt-get update
           sudo apt-get install --yes libdav1d-dev pkg-config
           pkg-config --atleast-version=1.3.0 dav1d
+      - name: Install text-quality fixture fonts
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes fonts-dejavu-core fonts-noto-cjk
       - run: scripts/release-check.sh
