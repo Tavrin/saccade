@@ -1,0 +1,153 @@
+{
+  "$defs": {
+    "Code": {
+      "description": "Stable failure classification; variants are additive within result v1.",
+      "oneOf": [
+        {
+          "const": "record_unavailable",
+          "description": "Receipt cannot be opened.",
+          "type": "string"
+        },
+        {
+          "const": "invalid_record",
+          "description": "Receipt is malformed, oversized, duplicated or structurally inconsistent.",
+          "type": "string"
+        },
+        {
+          "const": "unsupported_schema",
+          "description": "Unsupported record contract version.",
+          "type": "string"
+        },
+        {
+          "const": "partial_run",
+          "description": "Run incomplete, acquisition omitted or explicitly skipped.",
+          "type": "string"
+        },
+        {
+          "const": "acquisition_failed",
+          "description": "Acquisition failed or carries an error, even with an image present.",
+          "type": "string"
+        },
+        {
+          "const": "missing_image",
+          "description": "Image binding or image file missing.",
+          "type": "string"
+        },
+        {
+          "const": "unsafe_image_path",
+          "description": "Image path traverses outside the receipt root or uses a symlink.",
+          "type": "string"
+        },
+        {
+          "const": "image_unavailable",
+          "description": "Image cannot be read or exceeds the encoded byte limit.",
+          "type": "string"
+        },
+        {
+          "const": "stale_hash",
+          "description": "Bound bytes disagree with the recorded hash.",
+          "type": "string"
+        },
+        {
+          "const": "settings_mismatch",
+          "description": "Capture settings disagree with the plan or are absent.",
+          "type": "string"
+        },
+        {
+          "const": "missing_identity",
+          "description": "Producer fingerprint is incomplete or malformed.",
+          "type": "string"
+        },
+        {
+          "const": "identity_mismatch",
+          "description": "Producer identity or run session disagrees with the plan.",
+          "type": "string"
+        },
+        {
+          "const": "readiness_not_reached",
+          "description": "Readiness was not reached.",
+          "type": "string"
+        },
+        {
+          "const": "clock_mismatch",
+          "description": "Clock is absent, reversed or bound to a different domain or run.",
+          "type": "string"
+        }
+      ]
+    },
+    "Finding": {
+      "description": "One retained conformance failure.",
+      "properties": {
+        "code": {
+          "$ref": "#/$defs/Code",
+          "description": "Stable machine code."
+        },
+        "id": {
+          "description": "Slot identifier, null for whole-record failures.",
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "code"
+      ],
+      "type": "object"
+    }
+  },
+  "$id": "https://github.com/Tavrin/saccade/crates/saccade-core/schemas/saccade-capture-conformance.v1.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "description": "Offline validation receipt; does not authorize an image or timing verdict.",
+  "properties": {
+    "acquired": {
+      "description": "Number of retained acquisitions.",
+      "format": "uint",
+      "minimum": 0,
+      "type": "integer"
+    },
+    "conformant": {
+      "description": "True only when every declared slot conforms.",
+      "type": "boolean"
+    },
+    "expected": {
+      "description": "Number of planned slots.",
+      "format": "uint",
+      "minimum": 0,
+      "type": "integer"
+    },
+    "findings": {
+      "description": "All failures in plan order; at most one of each code per slot.",
+      "items": {
+        "$ref": "#/$defs/Finding"
+      },
+      "type": "array"
+    },
+    "report_id": {
+      "pattern": "^sha256:[0-9a-f]{64}$",
+      "type": "string"
+    },
+    "schema": {
+      "const": "saccade-capture-conformance.v1",
+      "description": "Versioned discriminator.",
+      "type": "string"
+    },
+    "source_refs": {
+      "items": {
+        "maxLength": 2048,
+        "type": "string"
+      },
+      "maxItems": 128,
+      "type": "array"
+    }
+  },
+  "required": [
+    "schema",
+    "conformant",
+    "expected",
+    "acquired",
+    "findings"
+  ],
+  "title": "Report",
+  "type": "object"
+}

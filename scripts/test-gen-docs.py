@@ -44,14 +44,14 @@ class CompiledFeatures(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'missing: ocr-provider'):
             self.generate(features)
 
-    def test_avif_exception_records_actual_features(self):
+    def test_avif_exception_preserves_canonical_header(self):
         features = [f for f in self.features() if f != 'imgtune-avif']
         with self.assertRaisesRegex(ValueError, 'missing: imgtune-avif'):
             self.generate(features)
         cli = self.generate(features, True)['docs/cli.md']
         inventory = next(line for line in cli.splitlines() if line.startswith('Compiled features:'))
-        self.assertNotIn('`imgtune-avif`', inventory)
-        self.assertIn('--allow-missing-imgtune-avif', cli)
+        self.assertIn('`imgtune-avif`', inventory)
+        self.assertEqual(cli.splitlines()[4:8], self.generate(self.features())['docs/cli.md'].splitlines()[4:8])
         self.assertIn('## saccade text\n', cli)
 
     def test_avif_exception_rejects_other_missing_features(self):

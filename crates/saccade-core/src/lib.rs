@@ -15,6 +15,8 @@ pub mod brand;
 pub mod budget_ledger;
 pub mod buffer;
 pub mod captured_sequence;
+// N21: offline capture-record conformance.
+pub mod capture;
 #[path = "safety/color.rs"]
 pub mod color;
 pub mod compare;

@@ -1,0 +1,415 @@
+{
+  "$defs": {
+    "Acquisition": {
+      "additionalProperties": false,
+      "description": "One acquisition, including unavailable evidence on failed attempts.",
+      "properties": {
+        "clock": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Clock"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Actual clock provenance, absent when unavailable."
+        },
+        "details": {
+          "additionalProperties": true,
+          "description": "Adapter-specific observations, such as final URL and HTTP status; data only.",
+          "type": "object"
+        },
+        "error": {
+          "description": "Failure detail; a captured slot must have no error.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "fingerprint": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Fingerprint"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Actual producer identity, absent when unavailable."
+        },
+        "id": {
+          "description": "Planned slot identifier.",
+          "type": "string"
+        },
+        "image": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Image"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Actual image binding, absent when acquisition produced no image."
+        },
+        "settings": {
+          "additionalProperties": true,
+          "description": "Actual producer settings, absent if acquisition failed before configuration.",
+          "type": [
+            "object",
+            "null"
+          ]
+        },
+        "status": {
+          "$ref": "#/$defs/Status",
+          "description": "Reported acquisition state."
+        }
+      },
+      "required": [
+        "id",
+        "status",
+        "details"
+      ],
+      "type": "object"
+    },
+    "Clock": {
+      "additionalProperties": false,
+      "description": "Timing provenance supplied by the producer, not measured by conformance.",
+      "properties": {
+        "domain": {
+          "description": "Clock domain used for both observations.",
+          "type": "string"
+        },
+        "end_ns": {
+          "description": "Acquisition end in nanoseconds in the same clock domain.",
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "run_id": {
+          "description": "Run identity associating timestamps with this receipt.",
+          "type": "string"
+        },
+        "start_ns": {
+          "description": "Acquisition start in nanoseconds in the declared clock domain.",
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "domain",
+        "run_id",
+        "start_ns",
+        "end_ns"
+      ],
+      "type": "object"
+    },
+    "Completion": {
+      "description": "Explicit completion state; partial runs cannot conform.",
+      "oneOf": [
+        {
+          "const": "complete",
+          "description": "Producer reports all planned attempts were recorded.",
+          "type": "string"
+        },
+        {
+          "const": "partial",
+          "description": "Producer reports an interrupted or incomplete run.",
+          "type": "string"
+        }
+      ]
+    },
+    "Criterion": {
+      "description": "Predicate identity.",
+      "properties": {
+        "name": {
+          "description": "Stable name, unique within each arm.",
+          "type": "string"
+        },
+        "parameters": {
+          "additionalProperties": true,
+          "description": "Parameters used to test readiness (empty means no parameters).",
+          "type": "object"
+        }
+      },
+      "required": [
+        "name",
+        "parameters"
+      ],
+      "type": "object"
+    },
+    "Expected": {
+      "additionalProperties": false,
+      "description": "A planned slot, retained separately from the producer's observations.",
+      "properties": {
+        "clock_domain": {
+          "description": "Declared timing domain, for example monotonic or a frozen browser clock.",
+          "type": "string"
+        },
+        "fingerprint": {
+          "$ref": "#/$defs/Fingerprint",
+          "description": "Planned executable, prepared input, build and readiness identities."
+        },
+        "id": {
+          "description": "Unique slot identifier.",
+          "type": "string"
+        },
+        "settings": {
+          "additionalProperties": true,
+          "description": "Exact planned capture settings, including any required stabilization.",
+          "type": "object"
+        }
+      },
+      "required": [
+        "id",
+        "settings",
+        "fingerprint",
+        "clock_domain"
+      ],
+      "type": "object"
+    },
+    "Fingerprint": {
+      "description": "A producer's optional identity declarations; strict mode requires all groups.",
+      "properties": {
+        "inputs": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Inputs"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Prepared content declaration."
+        },
+        "producer": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Producer2"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Executable and build declarations."
+        },
+        "run": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Run"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Execution and readiness declarations."
+        },
+        "schema": {
+          "description": "Versioned contract identifier.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "schema"
+      ],
+      "type": "object"
+    },
+    "Image": {
+      "additionalProperties": false,
+      "description": "Bytes attributed to an acquisition; paths resolve beside the receipt.",
+      "properties": {
+        "path": {
+          "description": "Relative file path; traversal and symlinks are refused.",
+          "type": "string"
+        },
+        "sha256": {
+          "description": "Lowercase, full SHA-256 of encoded image bytes.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "path",
+        "sha256"
+      ],
+      "type": "object"
+    },
+    "Inputs": {
+      "description": "Prepared inputs identity.",
+      "properties": {
+        "identity": {
+          "description": "Content or preparation-report hash binding preparer identity.",
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "type": "object"
+    },
+    "Producer": {
+      "description": "Generic adapter family, not an assertion that the producer was executed.",
+      "oneOf": [
+        {
+          "const": "renderer",
+          "description": "Externally rendered image and sidecar.",
+          "type": "string"
+        },
+        {
+          "const": "browser",
+          "description": "Externally acquired browser screenshot and receipt.",
+          "type": "string"
+        }
+      ]
+    },
+    "Producer2": {
+      "description": "Executable identity.",
+      "properties": {
+        "binary": {
+          "description": "Content hash of the executable.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "build": {
+          "additionalProperties": true,
+          "description": "Profile, features and other build settings.",
+          "type": [
+            "object",
+            "null"
+          ]
+        }
+      },
+      "type": "object"
+    },
+    "Readiness": {
+      "description": "One named readiness predicate and its observation.",
+      "properties": {
+        "criterion": {
+          "$ref": "#/$defs/Criterion",
+          "description": "Predicate name and exact parameters."
+        },
+        "observed": {
+          "description": "Measured value, not an inferred success."
+        },
+        "reached": {
+          "description": "Whether this predicate was satisfied.",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "criterion",
+        "reached",
+        "observed"
+      ],
+      "type": "object"
+    },
+    "Run": {
+      "description": "Execution identity.",
+      "properties": {
+        "env": {
+          "additionalProperties": true,
+          "description": "Explicitly selected environment and CLI settings (empty means none).",
+          "type": [
+            "object",
+            "null"
+          ]
+        },
+        "mode": {
+          "description": "Producer's mode name.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "readiness": {
+          "description": "Independently evaluated readiness predicates.",
+          "items": {
+            "$ref": "#/$defs/Readiness"
+          },
+          "type": [
+            "array",
+            "null"
+          ]
+        },
+        "session": {
+          "description": "Shared baseline/candidate capture session.",
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "type": "object"
+    },
+    "Status": {
+      "description": "Acquisition state; failed and skipped slots must remain in the receipt.",
+      "oneOf": [
+        {
+          "const": "captured",
+          "description": "Image acquisition succeeded.",
+          "type": "string"
+        },
+        {
+          "const": "failed",
+          "description": "Attempt failed, even if an old image still exists.",
+          "type": "string"
+        },
+        {
+          "const": "skipped",
+          "description": "Planned acquisition was not attempted.",
+          "type": "string"
+        }
+      ]
+    }
+  },
+  "$id": "https://github.com/Tavrin/saccade/crates/saccade-core/schemas/saccade-capture-record.v1.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "Full run record, preserving the plan and every attempted acquisition.",
+  "properties": {
+    "acquisitions": {
+      "description": "All acquisitions, including failures and skips.",
+      "items": {
+        "$ref": "#/$defs/Acquisition"
+      },
+      "type": "array"
+    },
+    "completion": {
+      "$ref": "#/$defs/Completion",
+      "description": "Explicit producer completion state."
+    },
+    "expected": {
+      "description": "Predeclared expected slots; never inferred from surviving images.",
+      "items": {
+        "$ref": "#/$defs/Expected"
+      },
+      "type": "array"
+    },
+    "producer": {
+      "$ref": "#/$defs/Producer",
+      "description": "Adapter family."
+    },
+    "run_id": {
+      "description": "Nonempty run identity, also bound by each fingerprint and clock.",
+      "type": "string"
+    },
+    "schema": {
+      "const": "saccade-capture-record.v1",
+      "description": "Versioned discriminator.",
+      "type": "string"
+    }
+  },
+  "required": [
+    "schema",
+    "producer",
+    "run_id",
+    "completion",
+    "expected",
+    "acquisitions"
+  ],
+  "title": "Record",
+  "type": "object"
+}

@@ -24,8 +24,10 @@ mod media_cmd;
 mod wave7_mcp;
 // wave9
 mod arms_cmd;
+// N21
 #[cfg(feature = "mcp")]
 mod arms_mcp;
+mod capture_cmd;
 mod wave9_cmd;
 #[cfg(feature = "mcp")]
 mod wave9_mcp;
@@ -308,6 +310,8 @@ enum Command {
     Perf(schema_cmd::PerfArgs),
     /// Validate producer identity before comparing pixels.
     Arms(arms_cmd::Args),
+    /// Validate capture receipts and their bound image bytes.
+    Capture(capture_cmd::Args),
     /// Plan and compare deterministic page sweeps.
     #[cfg(feature = "products")]
     Sweep(sweep_cmd::SweepArgs),
@@ -1266,6 +1270,7 @@ fn dispatch(command: Command, record_absolute_paths: bool) -> Result<u8, CliErro
         Command::Schema(args) => schema_cmd::run(args),
         Command::Perf(args) => schema_cmd::perf(args),
         Command::Arms(args) => arms_cmd::run(args),
+        Command::Capture(args) => capture_cmd::run(args),
         Command::Capabilities(args) => capability_cmd::run(args),
         Command::InspectImage(args) => inspect_image_cmd::run(args),
         Command::Assess(args) => assess_cmd::run(args),

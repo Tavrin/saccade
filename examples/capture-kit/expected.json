@@ -1,0 +1,192 @@
+[
+  {
+    "code": null,
+    "exit": 0,
+    "file": "renderer-valid.json"
+  },
+  {
+    "code": "missing_image",
+    "exit": 1,
+    "file": "renderer-missing-image.json"
+  },
+  {
+    "code": "stale_hash",
+    "exit": 1,
+    "file": "renderer-stale-hash.json"
+  },
+  {
+    "code": "acquisition_failed",
+    "exit": 1,
+    "file": "renderer-failed-acquisition.json"
+  },
+  {
+    "code": "settings_mismatch",
+    "exit": 1,
+    "file": "renderer-mismatched-settings.json"
+  },
+  {
+    "code": "partial_run",
+    "exit": 1,
+    "file": "renderer-partial-run.json"
+  },
+  {
+    "code": "partial_run",
+    "exit": 1,
+    "file": "renderer-declared-partial.json"
+  },
+  {
+    "code": "partial_run",
+    "exit": 1,
+    "file": "renderer-skipped-acquisition.json"
+  },
+  {
+    "code": "clock_mismatch",
+    "exit": 1,
+    "file": "renderer-clock-mismatch.json"
+  },
+  {
+    "code": "clock_mismatch",
+    "exit": 1,
+    "file": "renderer-clock-run-mismatch.json"
+  },
+  {
+    "code": "clock_mismatch",
+    "exit": 1,
+    "file": "renderer-clock-reversed.json"
+  },
+  {
+    "code": "clock_mismatch",
+    "exit": 1,
+    "file": "renderer-clock-missing.json"
+  },
+  {
+    "code": "identity_mismatch",
+    "exit": 1,
+    "file": "renderer-identity-mismatch.json"
+  },
+  {
+    "code": "identity_mismatch",
+    "exit": 1,
+    "file": "renderer-session-mismatch.json"
+  },
+  {
+    "code": "missing_identity",
+    "exit": 1,
+    "file": "renderer-missing-identity.json"
+  },
+  {
+    "code": "readiness_not_reached",
+    "exit": 1,
+    "file": "renderer-readiness-not-reached.json"
+  },
+  {
+    "code": "unsafe_image_path",
+    "exit": 1,
+    "file": "renderer-unsafe-image-path.json"
+  },
+  {
+    "code": "invalid_record",
+    "exit": 2,
+    "file": "renderer-duplicate-slot.json"
+  },
+  {
+    "code": "unsupported_schema",
+    "exit": 2,
+    "file": "renderer-unsupported-schema.json"
+  },
+  {
+    "code": null,
+    "exit": 0,
+    "file": "browser-valid.json"
+  },
+  {
+    "code": "missing_image",
+    "exit": 1,
+    "file": "browser-missing-image.json"
+  },
+  {
+    "code": "stale_hash",
+    "exit": 1,
+    "file": "browser-stale-hash.json"
+  },
+  {
+    "code": "acquisition_failed",
+    "exit": 1,
+    "file": "browser-failed-acquisition.json"
+  },
+  {
+    "code": "settings_mismatch",
+    "exit": 1,
+    "file": "browser-mismatched-settings.json"
+  },
+  {
+    "code": "partial_run",
+    "exit": 1,
+    "file": "browser-partial-run.json"
+  },
+  {
+    "code": "partial_run",
+    "exit": 1,
+    "file": "browser-declared-partial.json"
+  },
+  {
+    "code": "partial_run",
+    "exit": 1,
+    "file": "browser-skipped-acquisition.json"
+  },
+  {
+    "code": "clock_mismatch",
+    "exit": 1,
+    "file": "browser-clock-mismatch.json"
+  },
+  {
+    "code": "clock_mismatch",
+    "exit": 1,
+    "file": "browser-clock-run-mismatch.json"
+  },
+  {
+    "code": "clock_mismatch",
+    "exit": 1,
+    "file": "browser-clock-reversed.json"
+  },
+  {
+    "code": "clock_mismatch",
+    "exit": 1,
+    "file": "browser-clock-missing.json"
+  },
+  {
+    "code": "identity_mismatch",
+    "exit": 1,
+    "file": "browser-identity-mismatch.json"
+  },
+  {
+    "code": "identity_mismatch",
+    "exit": 1,
+    "file": "browser-session-mismatch.json"
+  },
+  {
+    "code": "missing_identity",
+    "exit": 1,
+    "file": "browser-missing-identity.json"
+  },
+  {
+    "code": "readiness_not_reached",
+    "exit": 1,
+    "file": "browser-readiness-not-reached.json"
+  },
+  {
+    "code": "unsafe_image_path",
+    "exit": 1,
+    "file": "browser-unsafe-image-path.json"
+  },
+  {
+    "code": "invalid_record",
+    "exit": 2,
+    "file": "browser-duplicate-slot.json"
+  },
+  {
+    "code": "unsupported_schema",
+    "exit": 2,
+    "file": "browser-unsupported-schema.json"
+  }
+]

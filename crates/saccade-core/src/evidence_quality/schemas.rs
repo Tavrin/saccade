@@ -20,6 +20,14 @@ fn schema<T: schemars::JsonSchema>(id: &str) -> Value {
 pub fn documents() -> Vec<(&'static str, Value)> {
     vec![
         (
+            crate::capture::RECORD_SCHEMA,
+            schema::<crate::capture::Record>(crate::capture::RECORD_SCHEMA),
+        ),
+        (
+            crate::capture::RESULT_SCHEMA,
+            schema::<crate::capture::Report>(crate::capture::RESULT_SCHEMA),
+        ),
+        (
             crate::captured_sequence::PLAN_SCHEMA,
             schema::<crate::captured_sequence::Plan>(crate::captured_sequence::PLAN_SCHEMA),
         ),

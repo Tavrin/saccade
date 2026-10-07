@@ -34,6 +34,7 @@ Commands:
   schema              Discover JSON Schemas without a source checkout
   perf                Validate producer performance sidecars
   arms                Validate producer identity before comparing pixels
+  capture             Validate capture receipts and their bound image bytes
   sweep               Plan and compare deterministic page sweeps
   imgtune             Audit delivery formats and search perceptual-target encodings
   design              Pull design-source frames and compare implementation captures
@@ -743,6 +744,47 @@ Options:
 
   -h, --help
           Print help
+
+Global options:
+      --allow-out-near-captures  Silence warnings when --out is next to capture metadata
+      --record-absolute-paths    Opt in to absolute local paths in reports and machine-readable output
+```
+
+## saccade capture
+
+```text
+Validate capture receipts and their bound image bytes
+
+Usage: saccade capture [OPTIONS] <COMMAND>
+
+Commands:
+  conform  Check a versioned receipt, all planned slots and exact image hashes
+
+Options:
+      --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
+      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
+  -h, --help                         Print help
+
+Global options:
+      --allow-out-near-captures  Silence warnings when --out is next to capture metadata
+      --record-absolute-paths    Opt in to absolute local paths in reports and machine-readable output
+```
+
+## saccade capture conform
+
+```text
+Check a versioned receipt, all planned slots and exact image hashes
+
+Usage: saccade capture conform [OPTIONS] <RECORD>
+
+Arguments:
+  <RECORD>
+
+Options:
+      --json                         Emit the versioned conformance result, including stable failure codes
+      --source-ref <SOURCE_REF>      External capture URI/key (repeatable); recorded in generated reports
+      --report-index <REPORT_INDEX>  Shared report index destination (default reports/index.jsonl next to each report, inside --out)
+  -h, --help                         Print help
 
 Global options:
       --allow-out-near-captures  Silence warnings when --out is next to capture metadata

@@ -74,7 +74,7 @@ CTC confidence is uncalibrated. `ocr-provider`
 adds opt-in Mistral image/PDF text via bound fixtures or authorized,
 egress/spend-capped calls.
 
-Producers: `schema list|get|path`, `perf validate FILE --json`.
+Producers: `schema`, `perf validate`; [capture](../docs/capture-kit.md).
 Field evidence: `render-evidence`, `noise build REPEATS...`, `compare --export-maps --noise-from REPEATS... --require-scope`.
 [Arm policies](../docs/arm-validity.md): null is a value; `--ignore` waives missing
 fields; `--allow-unreached` requires exact observations; maps select `record_files`.
