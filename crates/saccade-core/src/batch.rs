@@ -693,6 +693,37 @@ fn cooperative(
     })
 }
 
+// Keep the sentinel inode stable: deleting it would let a competing run lock a
+// different inode. Explicit unlock also releases flock when a duplicate (for
+// example, inherited by a concurrently spawned process) still references it.
+struct OutputLock(std::fs::File);
+impl OutputLock {
+    fn acquire(out: &Path) -> Result<Self> {
+        let file = std::fs::OpenOptions::new()
+            .read(true)
+            .write(true)
+            .create(true)
+            .truncate(false)
+            .open(out.join(".batch-lock"))
+            .map_err(io)?;
+        fs2::FileExt::try_lock_exclusive(&file).map_err(|e| {
+            if e.raw_os_error() == fs2::lock_contended_error().raw_os_error() {
+                invalid("batch output is already in use")
+            } else {
+                io(e)
+            }
+        })?;
+        Ok(Self(file))
+    }
+}
+impl Drop for OutputLock {
+    fn drop(&mut self) {
+        // Drop covers successful runs, early errors and unwinding. Closing the
+        // owned handle remains the fallback if the OS rejects the unlock.
+        let _ = fs2::FileExt::unlock(&self.0);
+    }
+}
+
 fn run_with_worker(
     worker: &Worker,
     inputs: &[Input],
@@ -730,15 +761,7 @@ fn run_with_worker(
             return Err(invalid("batch output contains a symlink"));
         }
     }
-    let lock = std::fs::OpenOptions::new()
-        .read(true)
-        .write(true)
-        .create(true)
-        .truncate(false)
-        .open(out.join(".batch-lock"))
-        .map_err(io)?;
-    fs2::FileExt::try_lock_exclusive(&lock)
-        .map_err(|_| invalid("batch output is already in use"))?;
+    let _lock = OutputLock::acquire(&out)?;
     // A dedicated owned directory permits summary replacement, never unrelated files.
     let config_path = out.join("batch-run.json");
     let mut config = worker.identity()?;
@@ -763,7 +786,8 @@ fn run_with_worker(
     }
     std::fs::create_dir_all(out.join("rows")).map_err(io)?;
     std::fs::create_dir_all(out.join("attempts")).map_err(io)?;
-    // The kernel releases the output lock on interruption.
+    // Keep the guard through row/summary and manifest publication. On process
+    // interruption the kernel releases the lock when its last handle closes.
     let mut counts = BTreeMap::new();
     for i in inputs {
         *counts.entry(i.path.file_name()).or_insert(0usize) += 1;
@@ -880,6 +904,34 @@ fn run_with_worker(
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn output_lock_releases_with_a_duplicate_handle_and_on_early_error() -> Result<()> {
+        let t = tempfile::tempdir().map_err(io)?;
+        let sentinel = t.path().join(".batch-lock");
+        std::fs::write(&sentinel, b"stale sentinel").map_err(io)?;
+        let lock = OutputLock::acquire(t.path())?;
+        // A clone deterministically models the shared file description of a
+        // forked child without timing or reliance on parallel test ordering.
+        let duplicate = lock.0.try_clone().map_err(io)?;
+        assert!(
+            matches!(OutputLock::acquire(t.path()), Err(Error::Config(s))
+            if s == "batch output is already in use")
+        );
+        drop(lock);
+        let next = OutputLock::acquire(t.path())?;
+        // Closing an old duplicate must not release the next owner's lock.
+        drop(duplicate);
+        assert!(OutputLock::acquire(t.path()).is_err());
+        drop(next);
+        fn fail(out: &Path) -> Result<()> {
+            let _lock = OutputLock::acquire(out)?;
+            Err(invalid("fixture error after acquisition"))
+        }
+        assert!(fail(t.path()).is_err());
+        drop(OutputLock::acquire(t.path())?);
+        assert_eq!(std::fs::read(sentinel).map_err(io)?, b"stale sentinel");
+        Ok(())
+    }
     #[test]
     fn cooperative_deadline_waits_for_active_work_and_blocks_later_work() -> Result<()> {
         let called = std::sync::atomic::AtomicBool::new(false);
