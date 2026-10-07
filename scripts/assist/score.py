@@ -51,6 +51,29 @@ def percentile(values, percent):
     if not values: return None
     values=sorted(values);return values[min(len(values)-1,math.ceil(len(values)*percent)-1)]
 
+# Versioned development qualification geometry; legacy scoring defaults to strict.
+GEOMETRY_POLICY = 'assist-region-geometry/2'
+GEOMETRY_TOLERANCE = 'tolerance'
+GEOMETRY_STRICT = 'strict'
+REGION_MIN_IOU = 0.8
+REGION_MIN_COVERAGE = 0.9
+
+
+def region_matches(observation, rect, mode=GEOMETRY_TOLERANCE):
+    if mode not in (GEOMETRY_TOLERANCE, GEOMETRY_STRICT):
+        raise ValueError('unknown geometry mode')
+    g=observation.get('geometry',{})
+    box=g.get('pixels',[])
+    if g.get('type')!='box' or len(box)!=4 or len(rect)!=4: return False
+    if any(type(v) not in (int,float) or not math.isfinite(v) for v in [*box,*rect]): return False
+    x,y,w,h=box; a,b,c,d=rect
+    if min(w,h,c,d)<=0 or min(x,y,a,b)<0: return False
+    if mode==GEOMETRY_STRICT:
+        return x<=a and y<=b and x+w>=a+c and y+h>=b+d
+    intersection=max(0,min(x+w,a+c)-max(x,a))*max(0,min(y+h,b+d)-max(y,b))
+    return intersection/(w*h+c*d-intersection)>=REGION_MIN_IOU and intersection/(c*d)>=REGION_MIN_COVERAGE
+
+
 def assertion_correct(observation, oracle, case, directory):
     """Finite preregistered facts only. Unknown paraphrases are unsupported, never dropped."""
     statement=observation.get("statement","")

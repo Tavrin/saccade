@@ -293,10 +293,10 @@ def evaluate(corpus, requests_file, result_dir, local_file, source_revision=None
     splits = {split: {w: {a: summarize(grouped[(split,w,a)], calls[(split,w,a)]) for a in ARMS}
                        for w in WORKLOADS} for split in ('development','calibration','heldout')}
     return dict(schema='saccade-g12-partial-score.v1', status='PARTIAL, UNQUALIFIED PILOT', qualified=False,
-        live_model_qualification=False, task_evidence_policy='g12-pilot/4' if task_evidence_policy else 'g12-pilot/2', frozen_source_commit=frozen_commit,
+        live_model_qualification=False, geometry_mode=__import__('dev_policy').GEOMETRY_MODE if task_evidence_policy else 'strict',geometry_policy='assist-region-geometry/2' if task_evidence_policy else 'legacy-exact', task_evidence_policy='g12-pilot/5' if task_evidence_policy else 'g12-pilot/2', frozen_source_commit=frozen_commit,
         frozen_gate_source_hash=manifest['versions']['gate_source_hash'], manifest_hash=manifest['manifest_hash'], oracle_hash=manifest['oracle_hash'],
         scoring_source_sha256={name:digest((Path(__file__).parent/name).read_bytes()) for name in
-            ('pilot_score.py','score.py','corpus.py','stage2.py','receipts.py','policy.py')},
+            ('pilot_score.py','score.py','corpus.py','stage2.py','receipts.py','policy.py',*(['dev_policy.py','scorer_selftest.py'] if task_evidence_policy else []))},
         inputs_sha256=inputs, splits=splits, root_results=root_results,
         campaign=summarize([i for i in root_results if i['split']==split], [c for group in calls.values() for c in group]),
         mechanics=collect(requests,result_dir,manifest),
@@ -312,8 +312,8 @@ def evaluate(corpus, requests_file, result_dir, local_file, source_revision=None
         limitations=[f'Campaign schedules only {split}; other splits have no executed observations.',
             'This heldout corpus has already informed prompt development; it is not a fresh prospective holdout.',
             'Root/arm samples share template families and arms; binomial bounds are nominal, not cluster-adjusted qualification evidence.',
-            'Finite assertion vocabulary; unsupported facts count as incorrect. Geometry is not padded to repair decimal rounding.',
-            'Audit-mask task evidence requires exclusion-ID citations; the pilot allows same-slot region citations only, so those answers cannot satisfy the frozen audit task scorer.',
+            'Finite assertion vocabulary; unsupported facts count as incorrect. Epoch-5 region matching uses explicit IoU/coverage thresholds; strict mode retains exact enclosure.' if task_evidence_policy else 'Finite assertion vocabulary; unsupported facts count as incorrect. Geometry is not padded to repair decimal rounding.',
+            'Epoch-5 audit-mask statements cite one region each; declared exclusion mappings preserve task evidence. Observations never approve masks.' if task_evidence_policy else 'Audit-mask task evidence requires exclusion-ID citations; the pilot allows same-slot region citations only, so those answers cannot satisfy the frozen audit task scorer.',
             'Exact normalized order comparison is conservative; an incomplete paired root cannot contribute a precision success.',
             'Generation reconciliation remains pending. Unknown transport cost is charged at reservation in this report only; source ledger is read-only.'])
 
@@ -363,8 +363,12 @@ if __name__ == '__main__':
     parser.add_argument('--out',type=Path,required=True)
     parser.add_argument('--source-revision',help='Verify the original frozen source snapshot; current scorer semantics must match.')
     parser.add_argument("--split",choices=("development","calibration","held-out"),default="held-out")
-    parser.add_argument("--task-evidence-policy", action="store_true", help="Score epoch-4 task-evidence requests; epoch-2 replay is refused.")
+    parser.add_argument("--task-evidence-policy", action="store_true", help="Score epoch-5 task-evidence requests; epoch-2 replay is refused.")
+    parser.add_argument("--geometry-mode", choices=("tolerance","strict"), default="tolerance", help="Epoch-5 qualification defaults to region tolerance; strict retains exact enclosure.")
     args = parser.parse_args()
+    if args.task_evidence_policy:
+        import dev_policy
+        dev_policy.GEOMETRY_MODE=args.geometry_mode
     report = evaluate(args.corpus,args.requests,args.results,args.local_results,args.source_revision,args.split.replace("held-out","heldout"),args.task_evidence_policy)
     put(args.out.with_suffix('.json'),report)
     args.out.with_suffix('.md').write_text(markdown(report))
