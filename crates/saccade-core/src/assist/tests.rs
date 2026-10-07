@@ -335,6 +335,59 @@ fn response(
     serde_json::to_vec(&json!({"modelVersion":"r1","candidates":[{"finishReason":"STOP","content":{"parts":[{"text":answer.to_string()}]}}]})).unwrap()
 }
 #[test]
+fn g12_strict_openrouter_schema_is_identical_to_prepared_gemini_schema() {
+    let mut c = catalog();
+    let image = png(0);
+    c.images[0].encoded_sha256 = Digest::of_bytes(&image);
+    let condition = Condition::LabelVisible {
+        label: "fixture".into(),
+    };
+    let identity = c.identity(Task::CheckUi, None, Some(&condition)).unwrap();
+    let prepared = workflow::prepare(
+        &c,
+        identity,
+        Some(&condition),
+        &[(Role::Single, image)],
+        false,
+        "r1",
+        Digest::of_bytes(b"api"),
+    )
+    .unwrap();
+    let source: serde_json::Value = decode(&prepared.payload).unwrap();
+    let bytes = openrouter::request(&prepared.payload, price::OPENROUTER_MODEL).unwrap();
+    let payload: serde_json::Value = decode(&bytes).unwrap();
+    assert_eq!(
+        source["generationConfig"]["responseJsonSchema"],
+        structured_output::answer_schema().unwrap()
+    );
+    assert_eq!(
+        prepared.key.settings["responseJsonSchema"],
+        source["generationConfig"]["responseJsonSchema"]
+    );
+    assert_eq!(
+        payload["response_format"]["json_schema"]["schema"],
+        source["generationConfig"]["responseJsonSchema"]
+    );
+    assert_eq!(
+        payload["response_format"],
+        structured_output::openrouter_format().unwrap()
+    );
+    assert_eq!(payload["provider"]["require_parameters"], true);
+    assert_eq!(payload["reasoning"], json!({"max_tokens":512}));
+    openrouter::validate_request(&bytes, price::OPENROUTER_MODEL).unwrap();
+    price::gemini_bounds(&prepared.payload).unwrap();
+    let mut drift = source;
+    drift["generationConfig"]["responseJsonSchema"]["additionalProperties"] = json!(true);
+    assert!(
+        openrouter::request(
+            &serde_json::to_vec(&drift).unwrap(),
+            price::OPENROUTER_MODEL
+        )
+        .is_err()
+    );
+    assert!(price::gemini_bounds(&serde_json::to_vec(&drift).unwrap()).is_err());
+}
+#[test]
 fn blind_orders_remap_identity_and_withhold_contradictions() {
     let first = png(0);
     let second = png(255);
@@ -658,7 +711,28 @@ fn g12_corpus_single_and_two_image_explain_reservations_fit_with_margin() {
                 "G12 {count} image(s), reverse={reverse}: input={}, reservation={} nanodollars",
                 admitted.bounds.input, admitted.reservation
             );
-            assert!(admitted.bounds.input <= 10_000);
+            // Keep the previous extraction-packet margin and account exactly
+            // for the newly serialized schema; the 16,000 admission ceiling stays fixed.
+            let mut legacy: serde_json::Value = decode(&payload).unwrap();
+            legacy["response_format"] = json!({"type":"json_object"});
+            let legacy_bounds = price::openrouter_bounds(
+                &crate::evidence::canonical::bytes(&legacy).unwrap(),
+                price::openrouter_price(price::OPENROUTER_MODEL).unwrap(),
+            )
+            .unwrap();
+            assert!(legacy_bounds.bounds.input <= 10_000);
+            let schema_delta =
+                crate::evidence::canonical::bytes(&structured_output::openrouter_format().unwrap())
+                    .unwrap()
+                    .len()
+                    - crate::evidence::canonical::bytes(&legacy["response_format"])
+                        .unwrap()
+                        .len();
+            assert_eq!(
+                admitted.bounds.input,
+                legacy_bounds.bounds.input + schema_delta as u64
+            );
+            assert!(admitted.bounds.input <= execution::INPUT_LIMIT);
             assert_eq!(
                 admitted.reservation,
                 admitted.bounds.input * 750 + 4096 * 3750

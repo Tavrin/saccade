@@ -324,9 +324,17 @@ compatibility, current model availability and actual provider enforcement requir
 the coordinator's reviewed live smoke.
 
 OpenRouter requests pin an explicit reasoning subset under
-`assist-openrouter-reasoning/1`: 512 tokens for `check_ui`, 1024 for
+`assist-openrouter-strict-schema/1`: 512 tokens for `check_ui`, 1024 for
 `explain`/`audit_mask`, within the 4096-token aggregate completion ceiling.
 Reported reasoning tokens are retained; missing counts stay unknown.
 `finish_reason: length` yields `truncated_output` and cannot qualify an answer.
 The [G12 reasoning decision](design-decisions/g12-reasoning-budget.md) records
 reservation semantics, conservative failure precedence, and offline fixtures.
+
+OpenRouter sends `response_format.type: json_schema`, with the named
+`saccade_assist_answer` schema and `strict: true`. The complete format is pinned
+in offline admission and payload identity. The Gemini assist payload and Python
+stage-2 planner use the same [closed answer schema](../crates/saccade-core/src/assist/answer.schema.json).
+`require_parameters: true` remains mandatory. Local closed decoding, citation,
+statement and geometry checks still refuse invalid answers, including geometry
+using `value` instead of `pixels`. See the [strict-schema decision](design-decisions/g12-strict-schema.md).

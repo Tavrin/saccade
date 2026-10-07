@@ -1,6 +1,7 @@
 """Frozen OpenRouter-only pilot schedule. No credentials, sockets or qualification claims."""
 import base64
 import copy
+import json
 from collections import Counter
 from pathlib import Path
 import random
@@ -13,7 +14,12 @@ ARMS = ('rules', 'single_gemini', 'two_gemini', 'cascade')
 MODEL = 'google/gemini-3.8-flash'
 REVISION = MODEL + '-20260902'
 SCHEDULE_SEED = 4406
-REQUEST_POLICY = 'assist-openrouter-reasoning/1'
+REQUEST_POLICY = 'assist-openrouter-strict-schema/1'
+ANSWER_SCHEMA_PATH = Path(__file__).resolve().parents[2] / 'crates/saccade-core/src/assist/answer.schema.json'
+
+def response_format():
+    return dict(type='json_schema', json_schema=dict(name='saccade_assist_answer', strict=True,
+                                                   schema=json.loads(ANSWER_SCHEMA_PATH.read_text())))
 REASONING_BUDGETS = dict(check_ui=512, explain=1024, audit_mask=1024)
 # Supplied ten-call aggregate; two-image expectation adds one mean prompt at pinned price.
 SINGLE_EXPECTED_NANO = 3485850
@@ -59,7 +65,7 @@ def payload(case, order, counterfactual, directory=None):
         image = base64.b64encode((directory/path).read_bytes()).decode() if directory else ''
         content.append(dict(type='image_url', image_url=dict(url='data:image/png;base64,'+image)))
     return dict(model=MODEL, messages=[dict(role='system', content=INSTRUCTION), dict(role='user', content=content)],
-                temperature=0, max_tokens=4096, reasoning=dict(max_tokens=REASONING_BUDGETS[case['task']]), response_format=dict(type='json_object'),
+                temperature=0, max_tokens=4096, reasoning=dict(max_tokens=REASONING_BUDGETS[case['task']]), response_format=response_format(),
                 provider=dict(allow_fallbacks=False, require_parameters=True, max_price=dict(prompt=.75, completion=3.75)),
                 usage=dict(include=True))
 
@@ -68,6 +74,8 @@ def reservation(request, dimensions):
     task=json.loads(request['messages'][1]['content'][0]['text'])['task']
     if request.get('reasoning') != dict(max_tokens=REASONING_BUDGETS[task]) or request.get('max_tokens') != 4096:
         raise ValueError('stage2 pinned reasoning policy')
+    if request.get('response_format') != response_format():
+        raise ValueError('stage2 pinned strict answer schema')
     stripped = copy.deepcopy(request)
     images = 0
     for message in stripped['messages']:
@@ -116,6 +124,7 @@ def report(manifest, directory, budget_bounded=False):
     if len(rows)>1000: raise ValueError('stage2 schedule exceeds 1000 request limit')
     return rows, dict(schema='saccade-g12-stage2-plan.v1', manifest_hash=manifest['manifest_hash'],
         epoch=manifest['epoch'], policy=manifest['policy']['version'], request_policy=REQUEST_POLICY,
+        response_format_hash=digest(encoded(response_format())),
         reasoning_budgets=REASONING_BUDGETS, aggregate_output_limit=4096, per_arm_workload=table,
         requests=len(rows), expected_nano_usd=expected, reservation_nano_usd=worst,
         budget_bounded=budget_bounded, full_reservation_fits=worst<=5_000_000_000,

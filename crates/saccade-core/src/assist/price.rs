@@ -188,6 +188,7 @@ pub fn gemini_bounds(payload: &[u8]) -> Result<Bounds> {
                     "temperature",
                     "maxOutputTokens",
                     "responseMimeType",
+                    "responseJsonSchema",
                     "mediaResolution",
                     "thinkingConfig",
                 ]
@@ -196,6 +197,12 @@ pub fn gemini_bounds(payload: &[u8]) -> Result<Bounds> {
         }),
         "unsupported Gemini generation settings",
     )?;
+    if let Some(schema) = settings.get("responseJsonSchema") {
+        require(
+            *schema == super::structured_output::answer_schema()?,
+            "Gemini answer schema drift",
+        )?;
+    }
     require(
         settings["thinkingConfig"]
             .as_object()

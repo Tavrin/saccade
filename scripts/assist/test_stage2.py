@@ -3,7 +3,7 @@ from pathlib import Path
 import tempfile
 import unittest
 from corpus import freeze, verify
-from stage2 import payload, priced, report, schedule, collect, REVISION, REQUEST_POLICY, REASONING_BUDGETS, reservation
+from stage2 import payload, priced, report, schedule, collect, REVISION, REQUEST_POLICY, REASONING_BUDGETS, reservation, response_format, ANSWER_SCHEMA_PATH
 
 class Stage2Tests(unittest.TestCase):
     def test_stage2_replan_interleaves_pilot_and_budget_bounded_larger_schedule(self):
@@ -14,7 +14,7 @@ class Stage2Tests(unittest.TestCase):
             rows,plan=report(manifest,directory)
             self.assertEqual(len(rows),216)
             self.assertEqual(rows,report(verify(directory)[0],directory)[0])
-            self.assertEqual(plan['reservation_nano_usd'],4621723500)
+            self.assertEqual(plan['reservation_nano_usd'],4843501500)
             self.assertFalse(plan['budget_bounded'])
             self.assertTrue(plan['full_reservation_fits'])
             workloads={c['root_id']:c['workload'] for c in manifest['cases']}
@@ -60,6 +60,40 @@ class Stage2Tests(unittest.TestCase):
                     total+=reservation(request,dimensions[row['root'].rsplit(':',3)[0]])
                 self.assertEqual(total,plan['reservation_nano_usd'])
                 self.assertFalse(plan['qualified'])
+
+    def test_strict_schema_and_policy_are_pinned_in_both_regenerated_plans(self):
+        import json
+        from corpus import digest, encoded
+        expected=response_format()
+        self.assertEqual(expected,dict(type='json_schema',json_schema=dict(name='saccade_assist_answer',strict=True,
+            schema=json.loads(ANSWER_SCHEMA_PATH.read_text()))))
+        self.assertEqual(REQUEST_POLICY,'assist-openrouter-strict-schema/1')
+        def closed(schema):
+            if schema.get('type')=='object':
+                self.assertIs(schema['additionalProperties'],False)
+                self.assertEqual(set(schema['required']),set(schema['properties']))
+                for child in schema['properties'].values(): closed(child)
+            if 'items' in schema: closed(schema['items'])
+            for child in schema.get('anyOf',[]): closed(child)
+        closed(expected['json_schema']['schema'])
+        geometry=expected['json_schema']['schema']['properties']['observations']['items']['properties']['geometry']
+        for variant,size in zip(geometry['anyOf'],(4,2)):
+            self.assertEqual(set(variant['properties']),{'type','pixels'})
+            self.assertEqual(variant['properties']['pixels']['minItems'],size)
+            self.assertEqual(variant['properties']['pixels']['maxItems'],size)
+        with tempfile.TemporaryDirectory() as tmp:
+            for target,count,bounded in [(15,216,False),(60,864,True)]:
+                directory=Path(tmp)/str(target)
+                manifest=freeze(directory,target,4406,REVISION,'jev-1.13.0',True)
+                rows,plan=report(manifest,directory,bounded)
+                self.assertEqual(plan['requests'],count)
+                self.assertEqual(plan['request_policy'],REQUEST_POLICY)
+                self.assertEqual(plan['response_format_hash'],digest(encoded(expected)))
+                for row in rows: self.assertEqual(row['payload']['response_format'],expected)
+                for invalid in (None,dict(type='json_object'),dict(type='json_schema',json_schema=dict(expected['json_schema'],strict=False))):
+                    drift=copy.deepcopy(rows[0]['payload'])
+                    drift['response_format']=invalid
+                    self.assertRaisesRegex(ValueError,'pinned strict answer schema',reservation,drift,[20,20])
 
     def test_budget_and_deadline_stops_remain_unavailable_in_full_denominator(self):
         import json

@@ -522,7 +522,7 @@ rejected before dispatch; the paced schedule uses a simulated clock, never sleep
 
 ## G12 explicit reasoning policy
 
-Stage-2 plans now pin `assist-openrouter-reasoning/1`: `reasoning.max_tokens` is
+Stage-2 plans now pin `assist-openrouter-strict-schema/1`: `reasoning.max_tokens` is
 512 for `check_ui` (including routing) and 1024 for `explain`/`audit_mask`, inside
 the existing 4096 aggregate output limit. Offline admission refuses omitted or
 changed controls. OpenRouter's reported reasoning counter is a completion subset;
@@ -530,3 +530,20 @@ missing thinking usage stays unknown. `truncated_output` is an unavailable,
 non-qualifying root outcome. Monetary breaches continue to stop the campaign and
 retain billed spend. See [the decision and focused fixtures](design-decisions/g12-reasoning-budget.md)
 for the exact request choice and offline evidence location.
+
+## G12 strict structured output
+
+The same closed answer schema now feeds the Gemini assist payload, Rust
+OpenRouter requests and Python stage-2 plans. OpenRouter pins
+`response_format: {"type":"json_schema","json_schema":{"name":"saccade_assist_answer","strict":true,"schema":...}}`
+with `require_parameters: true`. Admission refuses any format drift, including
+the old `json_object` shape. The full schema participates in input reservations,
+payload hashes and the frozen gate-source hash; plans record its exact
+`response_format_hash` under request policy `assist-openrouter-strict-schema/1`.
+
+The recorded pilot's `geometry.value` answer remains locally refused. No local
+decoder, citation, geometry, statement or request-binding validation is relaxed.
+The [strict-schema decision](design-decisions/g12-strict-schema.md) records the
+shared source, dialect choice, rejected alternatives and focused regressions.
+Regenerating and admitting the two plans remains offline evidence only; provider
+compatibility and model qualification are unverified by this change.

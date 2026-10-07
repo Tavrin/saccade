@@ -28,6 +28,7 @@ def put(path, value):
 def gate_source_hash():
     paths=set((ROOT/"scripts").rglob("*.py")) | set((ROOT/"scripts").glob("*.sh"))
     paths.update((ROOT/"scripts/assist/fixtures").glob("*.json"))
+    paths.add(ROOT/"crates/saccade-core/src/assist/answer.schema.json")
     for crate in ("saccade-core","saccade"):
         paths.update((ROOT/"crates"/crate/"src").rglob("*.rs"))
         paths.update((ROOT/"crates"/crate/"tests").rglob("*.rs"))

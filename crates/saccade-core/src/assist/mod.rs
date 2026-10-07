@@ -8,6 +8,7 @@ pub mod openrouter;
 pub mod price;
 pub mod routing;
 pub mod schema;
+pub mod structured_output;
 
 use crate::evidence::canonical::{self, Digest};
 use serde::{Serialize, de::DeserializeOwned};

@@ -5,8 +5,8 @@ use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 /// Billing source: OpenRouter passes provider prices through without markup.
 pub const PRICE_VERSION: &str = "openrouter-recorded-prices/2026-10-06-v1";
-/// Pinned minimal unified reasoning shape; changing this policy changes request hashes.
-pub const REQUEST_POLICY: &str = "assist-openrouter-reasoning/1";
+/// Pinned strict answer schema and unchanged minimal unified reasoning budgets.
+pub const REQUEST_POLICY: &str = "assist-openrouter-strict-schema/1";
 /// Keep at least three quarters of the aggregate completion budget for visible output.
 /// Missing/unknown task data receives the bounded multi-view policy.
 pub fn reasoning_budget(task: Option<&str>, output: u64) -> u64 {
@@ -37,6 +37,12 @@ pub fn request(gemini: &[u8], model: &str) -> Result<Vec<u8>> {
         "OpenRouter model ID",
     )?;
     let source: Value = decode(gemini)?;
+    if let Some(schema) = source["generationConfig"].get("responseJsonSchema") {
+        require(
+            *schema == super::structured_output::answer_schema()?,
+            "OpenRouter source answer schema drift",
+        )?;
+    }
     let parts = source["contents"][0]["parts"]
         .as_array()
         .ok_or(super::Error::Invalid("image packet"))?;
@@ -55,7 +61,7 @@ pub fn request(gemini: &[u8], model: &str) -> Result<Vec<u8>> {
             content.push(json!({"type":"image_url","image_url":{"url":format!("data:image/png;base64,{data}")}}));
         }
     }
-    let mut request = json!({"model":model,"messages":[{"role":"system","content":source["systemInstruction"]["parts"][0]["text"]},{"role":"user","content":content}],"temperature":0,"max_tokens":4096,"response_format":{"type":"json_object"},"provider":{"allow_fallbacks":false,"require_parameters":true,"max_price":price.max_price()},"usage":{"include":true}});
+    let mut request = json!({"model":model,"messages":[{"role":"system","content":source["systemInstruction"]["parts"][0]["text"]},{"role":"user","content":content}],"temperature":0,"max_tokens":4096,"response_format":super::structured_output::openrouter_format()?,"provider":{"allow_fallbacks":false,"require_parameters":true,"max_price":price.max_price()},"usage":{"include":true}});
     request["reasoning"] = json!({"max_tokens":reasoning_budget(request_task(&request).as_deref(), super::execution::OUTPUT_LIMIT)});
     crate::evidence::canonical::bytes(&request)
         .map_err(|_| super::Error::Invalid("OpenRouter payload"))
@@ -301,6 +307,87 @@ mod tests {
             absent.as_object_mut().unwrap().remove("reasoning");
             assert!(admission(&serde_json::to_vec(&absent).unwrap(), model).is_err());
         }
+    }
+    #[test]
+    fn g12_strict_response_format_is_exact_and_hash_bound() {
+        let model = super::super::price::OPENROUTER_MODEL;
+        let source = json!({"systemInstruction":{"parts":[{"text":"fixture"}]},"contents":[{"parts":[{"text":"fixture"}]}]});
+        let bytes = request(&serde_json::to_vec(&source).unwrap(), model).unwrap();
+        let payload: Value = decode(&bytes).unwrap();
+        let format = &payload["response_format"];
+        assert_eq!(
+            *format,
+            super::super::structured_output::openrouter_format().unwrap()
+        );
+        assert_eq!(REQUEST_POLICY, "assist-openrouter-strict-schema/1");
+        for invalid in [
+            Value::Null,
+            json!({"type":"json_object"}),
+            json!({"type":"json_schema","json_schema":{"name":"saccade_assist_answer","strict":false,"schema":format["json_schema"]["schema"]}}),
+            json!({"type":"json_schema","json_schema":{"name":"other","strict":true,"schema":format["json_schema"]["schema"]}}),
+            json!({"type":"json_schema","json_schema":{"name":"saccade_assist_answer","strict":true,"schema":{}}}),
+        ] {
+            let mut drift = payload.clone();
+            drift["response_format"] = invalid;
+            let changed = crate::evidence::canonical::bytes(&drift).unwrap();
+            assert_ne!(Digest::of_bytes(&bytes), Digest::of_bytes(&changed));
+            assert!(validate_request(&changed, model).is_err());
+        }
+        for path in [
+            "/response_format/json_schema/strict",
+            "/response_format/json_schema/schema/additionalProperties",
+            "/response_format/json_schema/schema/properties/observations/items/additionalProperties",
+            "/response_format/json_schema/schema/properties/observations/items/properties/geometry/anyOf/0/additionalProperties",
+            "/response_format/json_schema/schema/properties/observations/items/properties/geometry/anyOf/1/additionalProperties",
+        ] {
+            let mut drift = payload.clone();
+            let field = drift.pointer_mut(path).unwrap();
+            *field = json!(!field.as_bool().unwrap());
+            assert!(validate_request(&serde_json::to_vec(&drift).unwrap(), model).is_err());
+        }
+        let mut drift = payload.clone();
+        drift["response_format"]["json_schema"]["extra"] = json!(true);
+        assert!(validate_request(&serde_json::to_vec(&drift).unwrap(), model).is_err());
+        let mut drift = payload;
+        drift.as_object_mut().unwrap().remove("response_format");
+        assert!(validate_request(&serde_json::to_vec(&drift).unwrap(), model).is_err());
+    }
+    #[test]
+    fn g12_recorded_value_geometry_is_still_refused_locally() {
+        let body =
+            include_bytes!("../../tests/fixtures/assist-openrouter/value-geometry-pilot.json");
+        let mut value: Value = decode(body).unwrap();
+        let mut answer: Value = decode(
+            value["choices"][0]["message"]["content"]
+                .as_str()
+                .unwrap()
+                .as_bytes(),
+        )
+        .unwrap();
+        let hash: Digest = serde_json::from_value(answer["request_hash"].clone()).unwrap();
+        assert_eq!(value["choices"][0]["finish_reason"], "stop");
+        assert_eq!(value["usage"]["completion_tokens"], 445);
+        assert_eq!(
+            reply(body, super::super::price::OPENROUTER_MODEL, &hash)
+                .unwrap_err()
+                .code(),
+            "closed schema or JSON violation"
+        );
+        // Changing only the wrong field name proves the recorded refusal's cause.
+        for observation in answer["observations"].as_array_mut().unwrap() {
+            let geometry = observation["geometry"].as_object_mut().unwrap();
+            let pixels = geometry.remove("value").unwrap();
+            geometry.insert("pixels".into(), pixels);
+        }
+        value["choices"][0]["message"]["content"] = json!(answer.to_string());
+        assert!(
+            reply(
+                &serde_json::to_vec(&value).unwrap(),
+                super::super::price::OPENROUTER_MODEL,
+                &hash
+            )
+            .is_ok()
+        );
     }
     #[test]
     fn g12_model_price_caps_and_payload_bounds_fail_closed() {
@@ -1187,7 +1274,7 @@ pub fn admission(payload: &[u8], model: &str) -> Result<super::price::OpenRouter
             && !model.ends_with(":batch")
             && v["messages"].as_array().is_some_and(|a| !a.is_empty())
             && v["temperature"] == 0
-            && v["response_format"] == json!({"type":"json_object"})
+            && v["response_format"] == super::structured_output::openrouter_format()?
             && v["provider"]
                 == json!({"allow_fallbacks":false,"require_parameters":true,"max_price":price.max_price()})
             && v["usage"] == json!({"include":true})

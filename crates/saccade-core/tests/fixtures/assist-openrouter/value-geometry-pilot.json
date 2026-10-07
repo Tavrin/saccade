@@ -1,0 +1,36 @@
+{
+  "model": "google/gemini-3.8-flash",
+  "choices": [
+    {
+      "finish_reason": "stop",
+      "message": {
+        "content": "{\"request_hash\":\"sha256:752179b2327daedbe5ed07aa3bf09389b7cb4b729c9cc3296fd56dcbdf7fe664\",\"outcome\":\"observed\",\"observations\":[{\"slot\":\"P1\",\"kind\":\"text\",\"statement\":\"text:V\\u00e9rifier les \\u00e9l\\u00e9ments\\ns\\u00e9lectionn\\u00e9s\",\"geometry\":{\"type\":\"box\",\"value\":[0.075435,0.24375,0.371373,0.58125]},\"visibility\":\"visible\",\"evidence_refs\":[\"P1:R0\"],\"uncertainty\":0},{\"slot\":\"P2\",\"kind\":\"text\",\"statement\":\"text:V\\u00e9rifier les \\u00e9l\\u00e9ments\\ns\\u00e9lectionn\\u00e9s\",\"geometry\":{\"type\":\"box\",\"value\":[0.075435,0.24375,0.371373,0.58125]},\"visibility\":\"visible\",\"evidence_refs\":[\"P2:R0\"],\"uncertainty\":0},{\"slot\":\"P2\",\"kind\":\"appearance\",\"statement\":\"appearance:unchanged\",\"geometry\":{\"type\":\"box\",\"value\":[0.030948,0.24375,0.371373,0.58125]},\"visibility\":\"visible\",\"evidence_refs\":[\"P2:R0\"],\"uncertainty\":0}]}"
+      }
+    }
+  ],
+  "usage": {
+    "prompt_tokens": 2518,
+    "completion_tokens": 445,
+    "total_tokens": 2963,
+    "cost": 0.00355725,
+    "is_byok": false,
+    "prompt_tokens_details": {
+      "cached_tokens": 0,
+      "cache_write_tokens": 0,
+      "audio_tokens": 0,
+      "video_tokens": 0
+    },
+    "cost_details": {
+      "upstream_inference_cost": 0.00355725,
+      "upstream_inference_prompt_cost": 0.0018885,
+      "upstream_inference_completions_cost": 0.00166875
+    },
+    "completion_tokens_details": {
+      "reasoning_tokens": 0,
+      "image_tokens": 0,
+      "audio_tokens": 0
+    }
+  },
+  "id": "gen-fixture-value-geometry",
+  "provider": "fixture"
+}
