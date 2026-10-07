@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Add `sensitivity`: frozen defect catalogues, configured compare gates, per-class/magnitude miss rates, discrete detection minima and optional before/after policies; source images remain untouched.
+
 ## 0.2.8 (2026-10-07)
 
 - Run Python batch media analysis in-process with resumable receipts and cooperative deadlines, without an installed CLI.

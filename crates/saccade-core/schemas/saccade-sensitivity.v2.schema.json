@@ -1,0 +1,536 @@
+{
+  "$defs": {
+    "Catalogue": {
+      "additionalProperties": false,
+      "description": "Frozen negative-control catalogue, independent of gate thresholds.",
+      "properties": {
+        "injections": {
+          "description": "1..32 operations.",
+          "items": {
+            "$ref": "#/$defs/Injection"
+          },
+          "type": "array"
+        },
+        "provenance": {
+          "description": "Licence/provenance for caller-supplied patches and declared controls.",
+          "type": "string"
+        },
+        "schema": {
+          "const": "saccade-sensitivity-catalogue.v1",
+          "description": "Exact input discriminator.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "schema",
+        "provenance",
+        "injections"
+      ],
+      "type": "object"
+    },
+    "Counts": {
+      "additionalProperties": false,
+      "description": "One gate's aggregate at a declared class and magnitude.",
+      "properties": {
+        "detected": {
+          "description": "Changed injections rejected by a gate whose control passed.",
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "excluded": {
+          "description": "Input omitted by the gate's explicit selection policy.",
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "ineffective": {
+          "description": "Injection produced identical decoded pixels.",
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "missed": {
+          "description": "Changed injections accepted by a gate whose control passed.",
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "unavailable": {
+          "description": "Failed comparison or non-passing control; never detection evidence.",
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "detected",
+        "missed",
+        "excluded",
+        "ineffective",
+        "unavailable"
+      ],
+      "type": "object"
+    },
+    "Defect": {
+      "description": "One declared defect operation. Fractions refer to physical image dimensions.",
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "description": "Blend a local rectangle towards a declared colour; magnitude is opacity.",
+          "properties": {
+            "class": {
+              "const": "local_edit",
+              "type": "string"
+            },
+            "colour": {
+              "description": "Target sRGB colour.",
+              "items": {
+                "format": "uint8",
+                "maximum": 255,
+                "minimum": 0,
+                "type": "integer"
+              },
+              "maxItems": 3,
+              "minItems": 3,
+              "type": "array"
+            },
+            "rect": {
+              "description": "Fractional x,y,width,height.",
+              "items": {
+                "format": "double",
+                "type": "number"
+              },
+              "maxItems": 4,
+              "minItems": 4,
+              "type": "array"
+            }
+          },
+          "required": [
+            "class",
+            "rect",
+            "colour"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "Add a signed RGB offset, scaled by magnitude (0..1), clamping at 0 and 255.",
+          "properties": {
+            "class": {
+              "const": "colour_shift",
+              "type": "string"
+            },
+            "delta": {
+              "description": "Full-strength signed channel offsets, -255..255.",
+              "items": {
+                "format": "int16",
+                "maximum": 32767,
+                "minimum": -32768,
+                "type": "integer"
+              },
+              "maxItems": 3,
+              "minItems": 3,
+              "type": "array"
+            }
+          },
+          "required": [
+            "class",
+            "delta"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "Erase a caller-declared element rectangle towards its background colour.",
+          "properties": {
+            "background": {
+              "description": "Caller-declared background sRGB colour.",
+              "items": {
+                "format": "uint8",
+                "maximum": 255,
+                "minimum": 0,
+                "type": "integer"
+              },
+              "maxItems": 3,
+              "minItems": 3,
+              "type": "array"
+            },
+            "class": {
+              "const": "missing_element",
+              "type": "string"
+            },
+            "rect": {
+              "description": "Fractional x,y,width,height of the known element.",
+              "items": {
+                "format": "double",
+                "type": "number"
+              },
+              "maxItems": 4,
+              "minItems": 4,
+              "type": "array"
+            }
+          },
+          "required": [
+            "class",
+            "rect",
+            "background"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "Overlay a frozen before/after glyph patch on control/candidate copies.",
+          "properties": {
+            "after": {
+              "description": "After patch path relative to the catalogue.",
+              "type": "string"
+            },
+            "after_sha256": {
+              "description": "Expected encoded after-patch SHA-256.",
+              "type": "string"
+            },
+            "before": {
+              "description": "Before patch path relative to the catalogue.",
+              "type": "string"
+            },
+            "before_sha256": {
+              "description": "Expected encoded before-patch SHA-256.",
+              "type": "string"
+            },
+            "class": {
+              "const": "glyph_edit",
+              "type": "string"
+            },
+            "origin": {
+              "description": "Fractional x,y origin; patches retain native resolution.",
+              "items": {
+                "format": "double",
+                "type": "number"
+              },
+              "maxItems": 2,
+              "minItems": 2,
+              "type": "array"
+            }
+          },
+          "required": [
+            "class",
+            "before",
+            "after",
+            "before_sha256",
+            "after_sha256",
+            "origin"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "Gaussian blur; magnitude is sigma in physical pixels, up to 32.",
+          "properties": {
+            "class": {
+              "const": "blur",
+              "type": "string"
+            }
+          },
+          "required": [
+            "class"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "Shift right by magnitude integer pixels, up to 64; edge pixels are repeated.",
+          "properties": {
+            "class": {
+              "const": "misalignment",
+              "type": "string"
+            }
+          },
+          "required": [
+            "class"
+          ],
+          "type": "object"
+        }
+      ]
+    },
+    "Injection": {
+      "additionalProperties": false,
+      "description": "Caller-owned operation with a strictly increasing, frozen magnitude sweep.",
+      "properties": {
+        "defect": {
+          "$ref": "#/$defs/Defect",
+          "description": "Operation and declared location/colour."
+        },
+        "id": {
+          "description": "Unique printable ASCII identifier, at most 64 bytes.",
+          "type": "string"
+        },
+        "magnitudes": {
+          "description": "Positive magnitudes, up to 16; units are defined by the operation.",
+          "items": {
+            "format": "double",
+            "type": "number"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "id",
+        "defect",
+        "magnitudes"
+      ],
+      "type": "object"
+    },
+    "Minimum": {
+      "additionalProperties": false,
+      "description": "Discrete smallest observed detected magnitude; no interpolation or monotonicity claim.",
+      "properties": {
+        "class": {
+          "description": "Stable class name.",
+          "type": "string"
+        },
+        "gate": {
+          "description": "configured or before.",
+          "type": "string"
+        },
+        "smallest_detected_magnitude": {
+          "description": "Lowest tested magnitude detecting at least one eligible injection; null if none.",
+          "format": "double",
+          "type": [
+            "number",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "class",
+        "gate"
+      ],
+      "type": "object"
+    },
+    "Outcome": {
+      "additionalProperties": false,
+      "description": "Gate result for one frozen injected pair.",
+      "properties": {
+        "gate": {
+          "description": "configured or before.",
+          "type": "string"
+        },
+        "reasons": {
+          "description": "Explicit error/control-failure reasons.",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "reports": {
+          "description": "Retained compare reports (control first, candidate second); empty for skipped trials.",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "state": {
+          "description": "detected, missed, excluded, ineffective or unavailable.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "gate",
+        "state",
+        "reports",
+        "reasons"
+      ],
+      "type": "object"
+    },
+    "Summary": {
+      "additionalProperties": false,
+      "description": "Aggregate for one class and magnitude, pooling all declared locations/IDs.",
+      "properties": {
+        "class": {
+          "description": "Stable operation class.",
+          "type": "string"
+        },
+        "counts": {
+          "$ref": "#/$defs/Counts",
+          "description": "Eligibility and detection counts."
+        },
+        "gate": {
+          "description": "configured or before.",
+          "type": "string"
+        },
+        "magnitude": {
+          "description": "Declared operation strength (opacity, sigma or integer shift).",
+          "format": "double",
+          "type": "number"
+        },
+        "miss_rate": {
+          "description": "Missed/(detected+missed), null without eligible observations.",
+          "format": "double",
+          "type": [
+            "number",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "class",
+        "magnitude",
+        "gate",
+        "counts"
+      ],
+      "type": "object"
+    },
+    "Trial": {
+      "additionalProperties": false,
+      "description": "Retained trial and content identities.",
+      "properties": {
+        "changed_pixels": {
+          "description": "Number of unequal physical pixels between copies.",
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "entry": {
+          "description": "Original relative image name; matching policies use this spelling.",
+          "type": "string"
+        },
+        "image_sha256": {
+          "description": "Encoded PNG SHA-256 for both retained copies.",
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 2,
+          "minItems": 2,
+          "type": "array"
+        },
+        "images": {
+          "description": "Retained control and candidate paths relative to the experiment root.",
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 2,
+          "minItems": 2,
+          "type": "array"
+        },
+        "injection": {
+          "description": "Operation ID.",
+          "type": "string"
+        },
+        "magnitude": {
+          "description": "Declared magnitude.",
+          "format": "double",
+          "type": "number"
+        },
+        "outcomes": {
+          "description": "Independent outcomes for each configured policy.",
+          "items": {
+            "$ref": "#/$defs/Outcome"
+          },
+          "type": "array"
+        },
+        "source_sha256": {
+          "description": "Exact encoded source identity.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "entry",
+        "injection",
+        "magnitude",
+        "source_sha256",
+        "images",
+        "image_sha256",
+        "changed_pixels",
+        "outcomes"
+      ],
+      "type": "object"
+    }
+  },
+  "$id": "https://github.com/Tavrin/saccade/crates/saccade-core/schemas/saccade-sensitivity.v2.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "Frozen suite report; successor linking adds identity without changing v1 readers.",
+  "properties": {
+    "catalogue": {
+      "$ref": "#/$defs/Catalogue",
+      "description": "Frozen catalogue, including declared provenance and pins."
+    },
+    "catalogue_sha256": {
+      "description": "SHA-256 of the exact catalogue file.",
+      "type": "string"
+    },
+    "config_sha256": {
+      "description": "SHA-256 of exact gate configuration files, configured first and optional before second.",
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "limitations": {
+      "description": "Limits of this measurement.",
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "minima": {
+      "description": "Lowest actually detected discrete magnitude, by class and gate.",
+      "items": {
+        "$ref": "#/$defs/Minimum"
+      },
+      "type": "array"
+    },
+    "report_id": {
+      "pattern": "^sha256:[0-9a-f]{64}$",
+      "type": "string"
+    },
+    "schema": {
+      "const": "saccade-sensitivity.v2",
+      "description": "Historical v1 discriminator; linked transport emits v2.",
+      "type": "string"
+    },
+    "source_refs": {
+      "items": {
+        "maxLength": 2048,
+        "minLength": 1,
+        "type": "string"
+      },
+      "maxItems": 128,
+      "type": "array"
+    },
+    "state": {
+      "description": "Experiment completion: complete or insufficient_evidence.",
+      "type": "string"
+    },
+    "summaries": {
+      "description": "Counts and miss rates by class, magnitude and gate.",
+      "items": {
+        "$ref": "#/$defs/Summary"
+      },
+      "type": "array"
+    },
+    "trials": {
+      "description": "Every trial, including excluded and ineffective injections.",
+      "items": {
+        "$ref": "#/$defs/Trial"
+      },
+      "type": "array"
+    }
+  },
+  "required": [
+    "schema",
+    "state",
+    "limitations",
+    "catalogue",
+    "catalogue_sha256",
+    "config_sha256",
+    "trials",
+    "summaries",
+    "minima",
+    "report_id",
+    "source_refs"
+  ],
+  "title": "Report",
+  "type": "object"
+}

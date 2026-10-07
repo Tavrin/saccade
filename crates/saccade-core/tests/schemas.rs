@@ -64,6 +64,16 @@ fn committed_schemas_match_the_rust_types() {
     let update = std::env::var_os("UPDATE_SCHEMAS").is_some();
     let all = [
         (
+            "saccade-sensitivity-catalogue.v1.schema.json",
+            generated::<saccade_core::sensitivity::Catalogue>(
+                "saccade-sensitivity-catalogue.v1.schema.json",
+            ),
+        ),
+        (
+            "saccade-sensitivity.v1.schema.json",
+            generated::<saccade_core::sensitivity::Report>("saccade-sensitivity.v1.schema.json"),
+        ),
+        (
             "saccade-cases.v1.schema.json",
             generated::<saccade_core::coverage::Declaration>("saccade-cases.v1.schema.json"),
         ),

@@ -48,6 +48,7 @@ Commands:
   tofu                Triage pixel shapes resembling missing glyphs (requires text-quality)
   text-legibility     Measure text legibility across supplied variants (requires text-quality)
   critical-text       Gate exact critical strings and pixel legibility in declared regions
+  sensitivity         Measure configured gate sensitivity on frozen injected defects
   timed-text          Check plain SRT/WebVTT captions against timestamped frames and OCR evidence
   similar             Cosine similarity with an explicitly pinned optional ONNX export
   index               Build or query a streaming exact flat embedding index
@@ -1775,6 +1776,31 @@ Options:
       --out <OUT>                    Optional report directory, must be empty and outside inputs
       --json
   -h, --help                         Print help
+
+Global options:
+      --allow-out-near-captures  Silence warnings when --out is next to capture metadata
+      --record-absolute-paths    Opt in to absolute local paths in reports and machine-readable output
+```
+
+## saccade sensitivity
+
+```text
+Measure configured gate sensitivity on frozen injected defects
+
+Usage: saccade sensitivity [OPTIONS] --catalogue <CATALOGUE> --config <CONFIG> --out <OUT> <BASELINE>
+
+Arguments:
+  <BASELINE>  Baseline directory (bounded 8-bit raster images); never modified
+
+Options:
+      --catalogue <CATALOGUE>          Frozen saccade-sensitivity-catalogue.v1 injection catalogue
+      --source-ref <SOURCE_REF>        External capture URI/key (repeatable); recorded in generated reports
+      --config <CONFIG>                Configured compare policy, including overrides and hotspot_fail cluster guard
+      --report-index <REPORT_INDEX>    Shared report index destination (default reports/index.jsonl next to each report, inside --out)
+      --before-config <BEFORE_CONFIG>  Optional previous policy; evaluate the identical frozen controls under both policies
+      --out <OUT>                      Empty output directory outside baseline, catalogue, patches and policy inputs
+      --json
+  -h, --help                           Print help
 
 Global options:
       --allow-out-near-captures  Silence warnings when --out is next to capture metadata

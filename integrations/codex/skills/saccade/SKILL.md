@@ -71,7 +71,7 @@ uncalibrated confidence/failures, never rights proof. [Media](../docs/media.md),
 [Python](../docs/python.md), [API](../docs/api.md).
 SigLIP 2 pins; updates keep the model; prune only complete archives.
 
-[Critical text](../docs/critical-text.md): every region required; nonzero fails.
+[Text](../docs/critical-text.md): all required.
 
 [OCR](../docs/text.md): PP-OCRv5 (`ocr`); keep accents/source hashes; CTC confidence uncalibrated.
 `ocr-provider`: bound Mistral image/PDF fixtures or authorized egress/spend-capped calls.
@@ -89,3 +89,4 @@ G12 dry-run: fake provider; live needs reviewed billing ceilings. [Qualification
 [Print](../docs/print.md): `print`; no press approval.
 [Coverage](../docs/coverage.md). [Splits](../docs/split-review.md): clean never proves no leakage.
 [Rasters](../docs/raster.md): `geo`.
+[Sensitivity](../docs/sensitivity.md).

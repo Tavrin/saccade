@@ -1,0 +1,242 @@
+{
+  "$defs": {
+    "Defect": {
+      "description": "One declared defect operation. Fractions refer to physical image dimensions.",
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "description": "Blend a local rectangle towards a declared colour; magnitude is opacity.",
+          "properties": {
+            "class": {
+              "const": "local_edit",
+              "type": "string"
+            },
+            "colour": {
+              "description": "Target sRGB colour.",
+              "items": {
+                "format": "uint8",
+                "maximum": 255,
+                "minimum": 0,
+                "type": "integer"
+              },
+              "maxItems": 3,
+              "minItems": 3,
+              "type": "array"
+            },
+            "rect": {
+              "description": "Fractional x,y,width,height.",
+              "items": {
+                "format": "double",
+                "type": "number"
+              },
+              "maxItems": 4,
+              "minItems": 4,
+              "type": "array"
+            }
+          },
+          "required": [
+            "class",
+            "rect",
+            "colour"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "Add a signed RGB offset, scaled by magnitude (0..1), clamping at 0 and 255.",
+          "properties": {
+            "class": {
+              "const": "colour_shift",
+              "type": "string"
+            },
+            "delta": {
+              "description": "Full-strength signed channel offsets, -255..255.",
+              "items": {
+                "format": "int16",
+                "maximum": 32767,
+                "minimum": -32768,
+                "type": "integer"
+              },
+              "maxItems": 3,
+              "minItems": 3,
+              "type": "array"
+            }
+          },
+          "required": [
+            "class",
+            "delta"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "Erase a caller-declared element rectangle towards its background colour.",
+          "properties": {
+            "background": {
+              "description": "Caller-declared background sRGB colour.",
+              "items": {
+                "format": "uint8",
+                "maximum": 255,
+                "minimum": 0,
+                "type": "integer"
+              },
+              "maxItems": 3,
+              "minItems": 3,
+              "type": "array"
+            },
+            "class": {
+              "const": "missing_element",
+              "type": "string"
+            },
+            "rect": {
+              "description": "Fractional x,y,width,height of the known element.",
+              "items": {
+                "format": "double",
+                "type": "number"
+              },
+              "maxItems": 4,
+              "minItems": 4,
+              "type": "array"
+            }
+          },
+          "required": [
+            "class",
+            "rect",
+            "background"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "Overlay a frozen before/after glyph patch on control/candidate copies.",
+          "properties": {
+            "after": {
+              "description": "After patch path relative to the catalogue.",
+              "type": "string"
+            },
+            "after_sha256": {
+              "description": "Expected encoded after-patch SHA-256.",
+              "type": "string"
+            },
+            "before": {
+              "description": "Before patch path relative to the catalogue.",
+              "type": "string"
+            },
+            "before_sha256": {
+              "description": "Expected encoded before-patch SHA-256.",
+              "type": "string"
+            },
+            "class": {
+              "const": "glyph_edit",
+              "type": "string"
+            },
+            "origin": {
+              "description": "Fractional x,y origin; patches retain native resolution.",
+              "items": {
+                "format": "double",
+                "type": "number"
+              },
+              "maxItems": 2,
+              "minItems": 2,
+              "type": "array"
+            }
+          },
+          "required": [
+            "class",
+            "before",
+            "after",
+            "before_sha256",
+            "after_sha256",
+            "origin"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "Gaussian blur; magnitude is sigma in physical pixels, up to 32.",
+          "properties": {
+            "class": {
+              "const": "blur",
+              "type": "string"
+            }
+          },
+          "required": [
+            "class"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "Shift right by magnitude integer pixels, up to 64; edge pixels are repeated.",
+          "properties": {
+            "class": {
+              "const": "misalignment",
+              "type": "string"
+            }
+          },
+          "required": [
+            "class"
+          ],
+          "type": "object"
+        }
+      ]
+    },
+    "Injection": {
+      "additionalProperties": false,
+      "description": "Caller-owned operation with a strictly increasing, frozen magnitude sweep.",
+      "properties": {
+        "defect": {
+          "$ref": "#/$defs/Defect",
+          "description": "Operation and declared location/colour."
+        },
+        "id": {
+          "description": "Unique printable ASCII identifier, at most 64 bytes.",
+          "type": "string"
+        },
+        "magnitudes": {
+          "description": "Positive magnitudes, up to 16; units are defined by the operation.",
+          "items": {
+            "format": "double",
+            "type": "number"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "id",
+        "defect",
+        "magnitudes"
+      ],
+      "type": "object"
+    }
+  },
+  "$id": "https://github.com/Tavrin/saccade/crates/saccade-core/schemas/saccade-sensitivity-catalogue.v1.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "Frozen negative-control catalogue, independent of gate thresholds.",
+  "properties": {
+    "injections": {
+      "description": "1..32 operations.",
+      "items": {
+        "$ref": "#/$defs/Injection"
+      },
+      "type": "array"
+    },
+    "provenance": {
+      "description": "Licence/provenance for caller-supplied patches and declared controls.",
+      "type": "string"
+    },
+    "schema": {
+      "const": "saccade-sensitivity-catalogue.v1",
+      "description": "Exact input discriminator.",
+      "type": "string"
+    }
+  },
+  "required": [
+    "schema",
+    "provenance",
+    "injections"
+  ],
+  "title": "Catalogue",
+  "type": "object"
+}

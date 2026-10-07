@@ -203,6 +203,8 @@ pub mod model_config;
 // O12/O17
 /// Required region/string gates independent of global image averages.
 pub mod critical_text;
+/// Frozen image-gate negative controls.
+pub mod sensitivity;
 pub mod text_quality;
 
 // laneD

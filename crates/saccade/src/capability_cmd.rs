@@ -172,6 +172,15 @@ pub(crate) fn catalogue() -> Value {
         "export-inputs/export script and calibrate provide frozen parity/holdout qualification; runtime evidence still required",
     );
     add(
+        "gate_sensitivity",
+        "sensitivity --catalogue --config --out; optional --before-config",
+        "bounded baseline directory, frozen injection catalogue and compare policies",
+        vec![],
+        "available",
+        "Which declared defects does the configured gate miss, and at what tested strengths?",
+        "injected sensitivity is not field recall; actual discrete minima, no automatic tolerance changes; sidecar-dependent gates unsupported",
+    );
+    add(
         "critical-text",
         "critical-text --policy; --a-source --b-source or --ocr",
         "equal-scale rasters, frozen critical-region/string policy and bound text observations",

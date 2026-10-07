@@ -375,6 +375,9 @@ The last three names appear only when the corresponding feature is compiled in.
 - [saccade-schema-list.v2.schema.json](../crates/saccade-core/schemas/saccade-schema-list.v2.schema.json) — Historical reader contract
 - [saccade-schema-path.v1.schema.json](../crates/saccade-core/schemas/saccade-schema-path.v1.schema.json) — Historical reader contract
 - [saccade-schema-path.v2.schema.json](../crates/saccade-core/schemas/saccade-schema-path.v2.schema.json) — Historical reader contract
+- [saccade-sensitivity-catalogue.v1.schema.json](../crates/saccade-core/schemas/saccade-sensitivity-catalogue.v1.schema.json) — Catalogue
+- [saccade-sensitivity.v1.schema.json](../crates/saccade-core/schemas/saccade-sensitivity.v1.schema.json) — Report
+- [saccade-sensitivity.v2.schema.json](../crates/saccade-core/schemas/saccade-sensitivity.v2.schema.json) — Report
 - [saccade-sequence.v1.schema.json](../crates/saccade-core/schemas/saccade-sequence.v1.schema.json) — SequenceReport
 - [saccade-settling.v1.schema.json](../crates/saccade-core/schemas/saccade-settling.v1.schema.json) — Report
 - [saccade-similar.v1.schema.json](../crates/saccade-core/schemas/saccade-similar.v1.schema.json) — Historical reader contract
