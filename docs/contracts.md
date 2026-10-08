@@ -187,6 +187,7 @@ The last three names appear only when the corresponding feature is compiled in.
 - [saccade-assist-vision-provider.v2.schema.json](../crates/saccade-core/schemas/saccade-assist-vision-provider.v2.schema.json) — Historical reader contract
 - [saccade-assist.v1.schema.json](../crates/saccade-core/schemas/saccade-assist.v1.schema.json) — Envelope
 - [saccade-assist.v2.schema.json](../crates/saccade-core/schemas/saccade-assist.v2.schema.json) — Envelope
+- [saccade-auto-a11y.v1.schema.json](../crates/saccade-core/schemas/saccade-auto-a11y.v1.schema.json) — Historical reader contract
 - [saccade-batch-input.v1.schema.json](../crates/saccade-core/schemas/saccade-batch-input.v1.schema.json) — Batch intake list
 - [saccade-batch-result.v1.schema.json](../crates/saccade-core/schemas/saccade-batch-result.v1.schema.json) — Batch transport summary
 - [saccade-batch-row.v1.schema.json](../crates/saccade-core/schemas/saccade-batch-row.v1.schema.json) — Durable batch item receipt
@@ -515,3 +516,5 @@ Linked report successors preserve strict legacy schemas; see the
 TrustMark payload fields use the new watermark v3 data contract and v4 linked
 successor. Historical watermark v1/v2 schemas stay frozen and remain readable.
 See [TrustMark](trustmark.md) for bit packing, schema and ECC semantics.
+
+- [saccade-auto-a11y.v1.schema.json](../crates/saccade-core/schemas/saccade-auto-a11y.v1.schema.json) — automatic accessibility candidates, measurement abstentions and declared precedence.

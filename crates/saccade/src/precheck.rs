@@ -83,12 +83,12 @@ pub(crate) fn safety(args: SafetyArgs) -> Result<u8, CliError> {
 }
 
 pub(crate) fn a11y(args: A11yArgs) -> Result<u8, CliError> {
-    let options = saccade_core::a11y::Options {
+    let options = saccade_a11y::a11y::Options {
         config: args.config.clone(),
         suggest_regions: args.suggest_regions,
         keys_dir: args.keys_dir,
     };
-    let report = saccade_core::a11y::run(&args.input, &args.out, &options)?;
+    let report = saccade_a11y::a11y::run(&args.input, &args.out, &options)?;
     if let Some(path) = &args.junit {
         let mut inputs = vec![args.input.as_path()];
         if let Some(config) = &args.config {

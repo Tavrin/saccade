@@ -245,8 +245,8 @@ pub(crate) fn catalogue() -> Value {
     );
     add(
         "a11y",
-        "experiment a11y",
-        "rasters and declared text/coverage regions",
+        "a11y auto; experiment a11y",
+        "rasters with automatic candidates or declared text/coverage regions",
         vec!["prechecks"],
         if cfg!(feature = "prechecks") {
             "available_precheck"

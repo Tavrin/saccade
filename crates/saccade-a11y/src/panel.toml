@@ -1,0 +1,47 @@
+# Public/generated data only. See README "Judge mode" for key policy.
+[panel]
+name = "technical-review"
+min_prob = 0.7
+min_agreement = 0.8
+min_judges = 2
+canary_rate = 0.25
+canary_pass = 0.75
+max_retries = 2
+
+[[judge]]
+id = "jev"
+provider = "jev"
+model = "jev-latest"
+role = "a technical rendering reviewer"
+rubric = "Accept only changes supported by the stated intent and evidence. Abstain when the encoding cannot establish visual quality."
+weight = 1.0
+questions = ["accept", "triage", "cause", "ask_human", "mask_suggest", "preference"]
+
+[[judge]]
+id = "gemini"
+provider = "gemini"
+model = "gemini-3.8-flash"
+fallback = ["gemini-3.7-flash", "gemini-3.5-flash"]
+vision = true
+role = "a visual quality reviewer"
+rubric = "Inspect only the supplied anonymous crops. Judge against intent. Abstain rather than infer unseen frame content."
+weight = 1.0
+questions = ["accept", "triage", "cause", "ask_human", "mask_suggest", "preference"]
+
+# Optional extra judge (unverified: live calls exited with status 1 on 2026-10-01).
+# Uncomment to add a free model from a different family to the panel.
+# [[judge]]
+# id = "opencode-free"
+# provider = "opencode"
+# model = "opencode/nemotron-3-ultra-free"
+# role = "a technical evidence reviewer"
+# rubric = "Use only the supplied evidence. Return strict JSON with answer and probability. No tools."
+# weight = 0.5
+# questions = ["accept", "triage", "cause", "ask_human", "mask_suggest", "preference"]
+
+[[judge]]
+provider = "human"
+role = "a rendering expert"
+rubric = "Judge against the stated intent. Use unsure if the crops do not settle it."
+weight = 2.0
+questions = ["accept", "triage", "cause", "ask_human", "mask_suggest", "preference"]

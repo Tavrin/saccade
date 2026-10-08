@@ -957,3 +957,12 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 ```
+
+## Accessibility extension
+
+`saccade-a11y` adds no new third-party dependency versions: it reuses workspace
+`image`, `serde`, `serde_json`, `toml` (MIT OR Apache-2.0) and `globset` (MIT OR
+Unlicense), already recorded above. Generated evaluation glyphs/scenes are original
+code-drawn bitmap fixtures under the project licence. Optional OCR reuses the
+existing pinned PaddleOCR detection model and ONNX CPU runtime receipts; no new
+model, runtime or recognition dependency is introduced.

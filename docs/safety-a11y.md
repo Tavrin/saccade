@@ -10,9 +10,9 @@ it does not establish that a person can safely view the content.
 
 The recovery review checked the published W3C and ITU definitions. Criteria
 are pinned below; a human must confirm the required edition, delivery rules
-and detector assumptions before using this as an acceptance gate. The **single source of numeric
-criteria** is [THRESHOLDS](../crates/saccade-core/src/safety/thresholds.rs).
-Both JSON reports embed that table, including a citation and `verify` flag for
+and detector assumptions before using this as an acceptance gate. Photosensitivity criteria live in [core THRESHOLDS](../crates/saccade-core/src/safety/thresholds.rs);
+accessibility policy lives in [extension thresholds](../crates/saccade-a11y/src/thresholds.rs).
+The declared accessibility report embeds the combined table, including a citation and `verify` flag for
 each entry. Assumptions, uncertain broadcast wording and detector heuristics
 are explicitly marked. No new network dependency is needed for analysis.
 
@@ -229,3 +229,73 @@ error/source-protection paths and actual CLI/schema/JUnit/MCP/video boundaries.
 measured EXPECTED stdout. Existing upscaler and lod-transition sequences are
 checked separately as requested; results and verification exit codes are in
 the implementation handoff.
+
+## Fully automatic image pre-checks
+
+Accessibility policy is now the publishable `saccade-a11y` extension, enabled in
+CLI builds with `prechecks`. The deterministic measurement primitives stay in core.
+
+```sh
+saccade a11y auto capture.png --out auto-accessibility --level AA --json
+saccade a11y auto captures --out auto-accessibility --px-per-pt 1.3333333333333333 --junit auto-accessibility.xml
+```
+
+No human region declaration is required. `--config FILE` retains existing
+`[[region]]` declarations: these are checked separately and take precedence over
+any overlapping automatic candidate. Automatic results always carry
+`provenance: auto_detected`, detector identity, uncalibrated confidence and pixel
+boxes. `saccade-auto-a11y.v1.json`, text and HTML retain the full evidence and the
+existing six colour-vision simulation artifacts. CLI exit 1 means a measured FAIL;
+exit 0 is completed analysis, including WARN/UNMEASURABLE, and never coverage
+certification. Exit 2 means invalid input or an exhausted analysis budget.
+
+The pinned PaddleOCR detection model is discovered in the existing default model
+cache (override with `--model-cache DIR`) when the
+`ocr` feature, verified built-in detection pin and ONNX runtime are provisioned.
+No recognition model/dictionary is needed and no download or paid/network call is
+attempted. Absence, invalid pins/runtime and inference failure are explicitly
+`unavailable`. The model-free `edge-stroke-lines/1` fallback groups at least three
+aligned similar-height edge components; its support score is 0.7, not a probability.
+`closed-edge-components/1` labels compact boundaries with support on all four
+sides as UI candidates (score 0.75). Its precision-first rule misses many icons,
+rounded controls and nonrectangular components. A box is never proof of semantic
+UI applicability under SC 1.4.11. A run with zero text candidates explicitly says
+“no text detected by …” and cannot have an automatic PASS verdict.
+
+Text contrast uses SC 1.4.3 AA 4.5:1 normal / 3:1 large or SC 1.4.6 AAA 7:1 normal /
+4.5:1 large. UI contrast targets SC 1.4.11's 3:1. Minimum measured glyph body height, capped by detected height, divided by
+`--px-per-pt` >=18 is the **large-text assumption**; default scale is 96/72 capture
+pixels per typographic point. Body bounds do not establish a font's point size,
+boldness, device pixel ratio or final display size. No 14pt-bold inference is made.
+Supply the actual capture/display scale and inspect the recorded assumption.
+
+Core's existing robust two-cluster component medians produce swatches and ratio.
+Weak support/diffuse colours, nonuniform borders, gradients and a high-contrast
+cluster concealing a weaker glyph produce UNMEASURABLE contrast. Independent
+text-quality evidence records the worst component's contrast, body-height proxy,
+sharpness and stroke widths; these are pixel checks, not human reading tests.
+Missing-glyph shapes are WARN candidates; their absence is UNMEASURABLE coverage,
+never proof of complete fonts. CVD information loss remains a WARN candidate;
+pixels alone cannot establish whether colour conveys required information.
+Per-check PASS/FAIL/WARN/UNMEASURABLE are preserved in JSON. Unknown/warning JUnit
+cases are skipped, never successful measurement cases. Failures dominate the run.
+
+Analysis is bounded to 8,388,608 pixels and 8,192 edge components, with no automatic
+resampling. Fallback detection can miss tiny/short, rotated, touching/joined,
+low-contrast or textured text and mistake aligned shapes for text. Entirely missed
+regions cannot be measured. It cannot establish alt text, ARIA, focus order,
+keyboard operation, complete WCAG conformance or certification.
+
+The permanent offline generated corpus covers bitmap-font text on UI, documents,
+web-like pages, HUD-like screens and synthetic photos, threshold neighbours at
+3:1/4.5:1/7:1, size classes, gradients, low-contrast boundaries and colour-only
+status markers. Ground truth comes from rendering, with no manual labelling.
+Detection precision/recall use one-to-one IoU >=0.5 matching; verdict accuracy counts
+misses as incorrect, and false PASS is measured on generated failing cases.
+Exact finite-corpus counts and bounds are printed by
+`cargo test -p saccade-a11y --test automatic -- --nocapture`.
+This gate does not qualify PaddleOCR runtime execution or real-world detection.
+
+MCP mirrors this through `saccade_measure` operation `a11y_auto` with `input`, `out`,
+optional `config`, `level`, `px_per_pt`, `model_cache`, `junit`, under the same
+file-root confinement as the declared-region pre-check. No network authority exists.

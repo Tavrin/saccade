@@ -217,3 +217,89 @@ fn video_metadata_and_missing_optional_ffmpeg() {
     assert_eq!(result.status.code(), Some(2));
     assert!(String::from_utf8_lossy(&result.stdout).contains("ffmpeg on PATH"));
 }
+
+#[test]
+fn automatic_cli_directory_schema_junit_and_mcp_mirror() {
+    let tmp = tempfile::tempdir().unwrap();
+    let root = tmp.path();
+    let input = root.join("captures");
+    std::fs::create_dir(&input).unwrap();
+    image::RgbImage::from_pixel(80, 50, image::Rgb([255; 3]))
+        .save(input.join("blank.png"))
+        .unwrap();
+    let out = root.join("auto-report");
+    let junit = root.join("auto.xml");
+    let result = cli(&[
+        "a11y",
+        "auto",
+        input.to_str().unwrap(),
+        "--out",
+        out.to_str().unwrap(),
+        "--json",
+        "--junit",
+        junit.to_str().unwrap(),
+        "--level",
+        "AAA",
+    ]);
+    assert_eq!(
+        result.status.code(),
+        Some(0),
+        "{}",
+        String::from_utf8_lossy(&result.stderr)
+    );
+    let value: Value =
+        serde_json::from_slice(&std::fs::read(out.join("saccade-auto-a11y.v1.json")).unwrap())
+            .unwrap();
+    schema(&value, "saccade-auto-a11y.v1.schema.json");
+    assert_eq!(value["verdict"], "UNMEASURABLE");
+    assert_eq!(value["level"], "AAA");
+    assert!(
+        value["images"][0]["text_detection"]
+            .as_str()
+            .unwrap()
+            .starts_with("no text detected")
+    );
+    assert!(std::fs::read_to_string(junit).unwrap().contains("<skipped"));
+    let bad = cli(&[
+        "a11y",
+        "auto",
+        input.to_str().unwrap(),
+        "--out",
+        root.join("bad-auto").to_str().unwrap(),
+        "--px-per-pt",
+        "0",
+    ]);
+    assert_eq!(bad.status.code(), Some(2));
+    let outputs = tempfile::tempdir().unwrap();
+    let mut child = Command::new(env!("CARGO_BIN_EXE_saccade"))
+        .args(["mcp", "--root", root.to_str().unwrap()])
+        .arg("--out-root")
+        .arg(outputs.path())
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .spawn()
+        .unwrap();
+    let mut stdin = child.stdin.take().unwrap();
+    for msg in [
+        json!({"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"saccade_measure","arguments":{"operation":"a11y_auto","input":"captures","out":"automatic","level":"AAA","px_per_pt":1.5}}}),
+        json!({"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"saccade_measure","arguments":{"operation":"a11y_auto","input":"captures","out":"../escape"}}}),
+    ] {
+        writeln!(stdin, "{msg}").unwrap();
+    }
+    drop(stdin);
+    let output = child.wait_with_output().unwrap();
+    assert!(output.status.success());
+    let replies: Vec<Value> = String::from_utf8(output.stdout)
+        .unwrap()
+        .lines()
+        .map(|s| serde_json::from_str(s).unwrap())
+        .collect();
+    assert_ne!(replies[0]["result"]["isError"], true, "{}", replies[0]);
+    assert_eq!(replies[1]["result"]["isError"], true);
+    let artifact: Value = serde_json::from_slice(
+        &std::fs::read(outputs.path().join("automatic/saccade-auto-a11y.v1.json")).unwrap(),
+    )
+    .unwrap();
+    schema(&artifact, "saccade-auto-a11y.v1.schema.json");
+    assert_eq!(artifact["px_per_pt"], 1.5);
+}

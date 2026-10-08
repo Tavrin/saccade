@@ -107,6 +107,65 @@ pub fn preflight(c: &Contract, cache: &Path, download: bool) -> Result<()> {
     }
     Ok(())
 }
+/// Detection-only pinned PP-OCRv5 adapter; never downloads or loads recognition.
+#[cfg(feature = "ocr")]
+pub struct Detector(ort::session::Session);
+#[cfg(feature = "ocr")]
+impl Detector {
+    /// Verify the built-in detector pin and load the provisioned CPU runtime.
+    pub fn load(cache: &Path) -> Result<Self> {
+        let c = default_contract()?;
+        let path = semantic::artifact_path(cache, &c.detection)?;
+        let bytes = super::input::bytes(&path, c.detection.bytes)?;
+        if bytes.len() as u64 != c.detection.bytes
+            || crate::localized::digest(&bytes) != c.detection.sha256
+        {
+            return Err(Error::Config(
+                "OCR detection model hash/size mismatch".into(),
+            ));
+        }
+        let library = crate::wave7::runtime_install::resolve(None, cache)
+            .map_err(|e| Error::Config(e.to_string()))?;
+        crate::optional::require_library(&library)?;
+        std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| -> Result<Self> {
+            ort::init_from(library.display().to_string())
+                .commit()
+                .map_err(ort_error)?;
+            let session = ort::session::Session::builder()
+                .map_err(ort_error)?
+                .with_intra_threads(1)
+                .map_err(ort_error)?
+                .with_inter_threads(1)
+                .map_err(ort_error)?
+                .commit_from_memory(&bytes)
+                .map_err(ort_error)?;
+            if session.inputs.len() != 1
+                || session.inputs[0].name != "x"
+                || session.outputs.len() != 1
+                || session.outputs[0].name != "fetch_name_0"
+            {
+                return Err(Error::Config("PP-OCRv5 detection tensor names".into()));
+            }
+            Ok(Self(session))
+        }))
+        .map_err(|_| Error::Config("OCR detector runtime ABI/load failure".into()))?
+    }
+    /// Return capture-pixel quadrilaterals passing the pinned DB thresholds.
+    pub fn detect(&mut self, rgb: &image::RgbImage) -> Result<Vec<[[f32; 2]; 4]>> {
+        std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            let ratio = 960. / f64::from(rgb.width().max(rgb.height()));
+            let w = (((f64::from(rgb.width()) * ratio) as u32).div_ceil(128) * 128).max(128);
+            let h = (((f64::from(rgb.height()) * ratio) as u32).div_ceil(128) * 128).max(128);
+            let resized = super::ocr_geometry::resize(rgb, w, h)?;
+            let (shape, map) = run(&mut self.0, &resized, true, w)?;
+            if shape != [1, 1, i64::from(h), i64::from(w)] {
+                return Err(Error::Config("DB output shape".into()));
+            }
+            super::ocr_geometry::boxes(&map, w, h, rgb.dimensions())
+        }))
+        .map_err(|_| Error::Config("OCR detector inference failed".into()))?
+    }
+}
 /// Reusable detector and recognizer sessions, one CPU thread each.
 #[cfg(feature = "ocr")]
 pub struct Engine {

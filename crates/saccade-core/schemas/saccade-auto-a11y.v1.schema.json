@@ -1,0 +1,798 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "schema": {
+      "const": "saccade-auto-a11y.v1"
+    },
+    "report_id": {
+      "type": "string"
+    },
+    "source_refs": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "verdict": {
+      "enum": [
+        "PASS",
+        "FAIL",
+        "WARN",
+        "UNMEASURABLE"
+      ]
+    },
+    "disclaimer": {
+      "type": "string"
+    },
+    "level": {
+      "enum": [
+        "AA",
+        "AAA"
+      ]
+    },
+    "px_per_pt": {
+      "type": "number",
+      "minimum": 0.1,
+      "maximum": 100
+    },
+    "assumptions": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "images": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "verdict": {
+            "enum": [
+              "PASS",
+              "FAIL",
+              "WARN",
+              "UNMEASURABLE"
+            ]
+          },
+          "detectors": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "detector": {
+                  "type": "string"
+                },
+                "state": {
+                  "enum": [
+                    "available",
+                    "unavailable"
+                  ]
+                },
+                "reason": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "detector",
+                "state",
+                "reason"
+              ]
+            }
+          },
+          "text_detection": {
+            "type": "string"
+          },
+          "automatic": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "region": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "kind": {
+                      "enum": [
+                        "text",
+                        "ui"
+                      ]
+                    },
+                    "rect_px": {
+                      "type": "array",
+                      "items": {
+                        "type": "integer",
+                        "minimum": 0
+                      },
+                      "minItems": 4,
+                      "maxItems": 4
+                    },
+                    "text_height_px": {
+                      "type": "integer",
+                      "minimum": 0
+                    },
+                    "provenance": {
+                      "const": "auto_detected"
+                    },
+                    "detector": {
+                      "type": "string"
+                    },
+                    "confidence": {
+                      "type": "number",
+                      "minimum": 0,
+                      "maximum": 1
+                    },
+                    "overridden_by_declared": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "kind",
+                    "rect_px",
+                    "text_height_px",
+                    "provenance",
+                    "detector",
+                    "confidence",
+                    "overridden_by_declared"
+                  ]
+                },
+                "verdict": {
+                  "enum": [
+                    "PASS",
+                    "FAIL",
+                    "WARN",
+                    "UNMEASURABLE"
+                  ]
+                },
+                "foreground": {
+                  "anyOf": [
+                    {
+                      "type": "array",
+                      "items": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 255
+                      },
+                      "minItems": 3,
+                      "maxItems": 3
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "background": {
+                  "anyOf": [
+                    {
+                      "type": "array",
+                      "items": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 255
+                      },
+                      "minItems": 3,
+                      "maxItems": 3
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "ratio": {
+                  "anyOf": [
+                    {
+                      "type": "number",
+                      "minimum": 1,
+                      "maximum": 21
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "required_ratio": {
+                  "enum": [
+                    3,
+                    4.5,
+                    7
+                  ]
+                },
+                "assumed_large": {
+                  "type": "boolean"
+                },
+                "legibility": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/$defs/RegionResult"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "legibility_verdict": {
+                  "anyOf": [
+                    {
+                      "enum": [
+                        "PASS",
+                        "FAIL",
+                        "WARN",
+                        "UNMEASURABLE"
+                      ]
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "missing_glyphs": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/$defs/Candidate"
+                  }
+                },
+                "glyph_verdict": {
+                  "enum": [
+                    "WARN",
+                    "UNMEASURABLE"
+                  ]
+                },
+                "reasons": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "success_criterion": {
+                  "enum": [
+                    "1.4.3",
+                    "1.4.6",
+                    "1.4.11"
+                  ]
+                }
+              },
+              "required": [
+                "region",
+                "verdict",
+                "foreground",
+                "background",
+                "ratio",
+                "required_ratio",
+                "assumed_large",
+                "legibility",
+                "legibility_verdict",
+                "missing_glyphs",
+                "glyph_verdict",
+                "reasons",
+                "success_criterion"
+              ]
+            }
+          },
+          "declared_and_colour_vision": {
+            "type": "object",
+            "properties": {
+              "name": {
+                "type": "string"
+              },
+              "verdict": {
+                "enum": [
+                  "PASS",
+                  "WARN",
+                  "FAIL"
+                ]
+              },
+              "original": {
+                "type": "string"
+              },
+              "simulations": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "string"
+                }
+              },
+              "heatmaps": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "string"
+                }
+              },
+              "findings": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "kind": {
+                      "const": "information_loss"
+                    },
+                    "severity": {
+                      "const": "WARN"
+                    },
+                    "simulation": {
+                      "enum": [
+                        "protanopia",
+                        "deuteranopia",
+                        "tritanopia"
+                      ]
+                    },
+                    "rect": {
+                      "type": "array",
+                      "items": {
+                        "type": "number",
+                        "minimum": 0,
+                        "maximum": 1
+                      },
+                      "minItems": 4,
+                      "maxItems": 4
+                    },
+                    "original_delta_e": {
+                      "type": "number",
+                      "minimum": 0
+                    },
+                    "simulated_delta_e": {
+                      "type": "number",
+                      "minimum": 0
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "kind",
+                    "severity",
+                    "simulation",
+                    "rect",
+                    "original_delta_e",
+                    "simulated_delta_e",
+                    "message"
+                  ],
+                  "additionalProperties": false
+                }
+              },
+              "contrast": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "name": {
+                      "type": "string"
+                    },
+                    "kind": {
+                      "enum": [
+                        "text",
+                        "ui"
+                      ]
+                    },
+                    "rect": {
+                      "type": "array",
+                      "items": {
+                        "type": "number",
+                        "minimum": 0,
+                        "maximum": 1
+                      },
+                      "minItems": 4,
+                      "maxItems": 4
+                    },
+                    "verdict": {
+                      "enum": [
+                        "PASS",
+                        "WARN",
+                        "FAIL"
+                      ]
+                    },
+                    "foreground": {
+                      "anyOf": [
+                        {
+                          "type": "array",
+                          "items": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 255
+                          },
+                          "minItems": 3,
+                          "maxItems": 3
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "background": {
+                      "anyOf": [
+                        {
+                          "type": "array",
+                          "items": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 255
+                          },
+                          "minItems": 3,
+                          "maxItems": 3
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "ratio": {
+                      "anyOf": [
+                        {
+                          "type": "number",
+                          "minimum": 1,
+                          "maximum": 21
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "threshold": {
+                      "type": "number",
+                      "minimum": 0
+                    },
+                    "level": {
+                      "enum": [
+                        "AA",
+                        "AAA"
+                      ]
+                    },
+                    "note": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "name",
+                    "kind",
+                    "rect",
+                    "verdict",
+                    "foreground",
+                    "background",
+                    "ratio",
+                    "threshold",
+                    "level",
+                    "note"
+                  ],
+                  "additionalProperties": false
+                }
+              },
+              "proposals": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "kind": {
+                      "enum": [
+                        "text",
+                        "ui"
+                      ]
+                    },
+                    "rect": {
+                      "type": "array",
+                      "items": {
+                        "type": "number",
+                        "minimum": 0,
+                        "maximum": 1
+                      },
+                      "minItems": 4,
+                      "maxItems": 4
+                    },
+                    "confirmed": {
+                      "const": false
+                    },
+                    "model": {
+                      "type": "string"
+                    },
+                    "probability": {
+                      "anyOf": [
+                        {
+                          "type": "number",
+                          "minimum": 0,
+                          "maximum": 1
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    }
+                  },
+                  "required": [
+                    "kind",
+                    "rect",
+                    "confirmed",
+                    "model",
+                    "probability"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            },
+            "required": [
+              "name",
+              "verdict",
+              "original",
+              "simulations",
+              "heatmaps",
+              "findings",
+              "contrast",
+              "proposals"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "name",
+          "verdict",
+          "detectors",
+          "text_detection",
+          "automatic",
+          "declared_and_colour_vision"
+        ]
+      }
+    }
+  },
+  "required": [
+    "schema",
+    "verdict",
+    "disclaimer",
+    "level",
+    "px_per_pt",
+    "assumptions",
+    "images"
+  ],
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "saccade-auto-a11y.v1",
+  "$defs": {
+    "OcrEvidence": {
+      "additionalProperties": false,
+      "description": "Optional OCR evidence, isolated from pixel measurements.",
+      "properties": {
+        "agrees_with_baseline": {
+          "description": "Exact baseline agreement, absent without comparable observations.",
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "reason": {
+          "description": "Adapter identity or explicit missing-evidence reason.",
+          "type": "string"
+        },
+        "state": {
+          "$ref": "#/$defs/State",
+          "description": "unavailable, candidates, legible (agreement) or illegible (disagreement)."
+        },
+        "text": {
+          "description": "Exact observed Unicode scalars; inert data.",
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "state",
+        "reason"
+      ],
+      "type": "object"
+    },
+    "Policy": {
+      "additionalProperties": false,
+      "description": "Frozen thresholds in physical capture pixels.",
+      "properties": {
+        "minimum_contrast": {
+          "description": "WCAG-style relative luminance ratio (not compliance certification).",
+          "format": "double",
+          "type": "number"
+        },
+        "minimum_sharpness": {
+          "description": "Minimum normalized adjacent-pixel edge step.",
+          "format": "double",
+          "type": "number"
+        },
+        "minimum_stroke_px": {
+          "description": "Minimum stroke run width in pixels.",
+          "format": "double",
+          "type": "number"
+        },
+        "minimum_x_height_px": {
+          "description": "Minimum component body-height proxy in sampled pixels.",
+          "format": "double",
+          "type": "number"
+        }
+      },
+      "required": [
+        "minimum_contrast",
+        "minimum_x_height_px",
+        "minimum_sharpness",
+        "minimum_stroke_px"
+      ],
+      "type": "object"
+    },
+    "RegionResult": {
+      "additionalProperties": false,
+      "description": "Measurements for one declared text region.",
+      "properties": {
+        "contrast": {
+          "description": "Actual measured background/foreground luminance ratio.",
+          "format": "double",
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "ocr": {
+          "$ref": "#/$defs/OcrEvidence",
+          "description": "Optional OCR agreement with baseline in this region."
+        },
+        "reasons": {
+          "description": "Threshold failures or abstention reasons.",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "rect_px": {
+          "description": "Region in the current capture, after proportional mapping.",
+          "items": {
+            "format": "uint32",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "maxItems": 4,
+          "minItems": 4,
+          "type": "array"
+        },
+        "region": {
+          "description": "Stable zero-based baseline region index.",
+          "format": "uint",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "sharpness": {
+          "description": "Minimum per-component normalized maximum edge step.",
+          "format": "double",
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "state": {
+          "$ref": "#/$defs/State",
+          "description": "Pixel/optional OCR verdict with unavailable evidence kept separate."
+        },
+        "stroke_px": {
+          "description": "Minimum component lower-quartile horizontal/vertical run width.",
+          "format": "double",
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "x_height_px": {
+          "description": "Minimum measurable body-height proxy; not inferred typographic x-height.",
+          "format": "double",
+          "type": [
+            "number",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "region",
+        "rect_px",
+        "state",
+        "ocr",
+        "reasons"
+      ],
+      "type": "object"
+    },
+    "State": {
+      "description": "Evidence states; absence of a candidate never certifies complete glyph coverage.",
+      "oneOf": [
+        {
+          "const": "candidates",
+          "description": "At least one glyph-shaped candidate needs review.",
+          "type": "string"
+        },
+        {
+          "const": "legible",
+          "description": "Pixel thresholds are satisfied in a declared text region.",
+          "type": "string"
+        },
+        {
+          "const": "illegible",
+          "description": "At least one measured threshold fails.",
+          "type": "string"
+        },
+        {
+          "const": "insufficient_evidence",
+          "description": "Evidence cannot support a positive verdict.",
+          "type": "string"
+        },
+        {
+          "const": "unavailable",
+          "description": "Optional evidence is absent.",
+          "type": "string"
+        }
+      ]
+    },
+    "Variant": {
+      "additionalProperties": false,
+      "description": "One variant and all baseline-mapped regions.",
+      "properties": {
+        "dimensions": {
+          "description": "Capture dimensions.",
+          "items": {
+            "format": "uint32",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "maxItems": 2,
+          "minItems": 2,
+          "type": "array"
+        },
+        "image_sha256": {
+          "description": "Exact encoded input identity.",
+          "type": "string"
+        },
+        "index": {
+          "description": "Input index (zero is first variant).",
+          "format": "uint",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "regions": {
+          "description": "Every declared region, including unavailable evidence.",
+          "items": {
+            "$ref": "#/$defs/RegionResult"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "index",
+        "image_sha256",
+        "dimensions",
+        "regions"
+      ],
+      "type": "object"
+    },
+    "Candidate": {
+      "additionalProperties": false,
+      "description": "A glyph-shaped observation, never a font/shaping diagnosis.",
+      "properties": {
+        "confidence": {
+          "description": "Heuristic shape score in [0,1], not a calibrated probability.",
+          "format": "double",
+          "type": "number"
+        },
+        "rect_px": {
+          "description": "Absolute capture pixels [x,y,width,height].",
+          "items": {
+            "format": "uint32",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "maxItems": 4,
+          "minItems": 4,
+          "type": "array"
+        },
+        "shape": {
+          "description": "hollow_rectangle or replacement_diamond.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "rect_px",
+        "shape",
+        "confidence"
+      ],
+      "type": "object"
+    }
+  }
+}

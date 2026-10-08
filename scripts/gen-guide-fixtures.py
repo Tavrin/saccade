@@ -126,6 +126,12 @@ def main():
             json.dumps({"run_mode": mode, "renderer_build": "synthetic-1"}, indent=1) + "\n"
         )
     write_png(out / "render/other-mode/sphere.png", sphere(1.0))
+    # Automatic accessibility: known blank and low-contrast closed controls.
+    write_png(out / "a11y/blank.png", canvas(100, 60, (255, 255, 255)))
+    controls = canvas(100, 60, (255, 255, 255))
+    rect(controls, 20, 15, 24, 24, (180, 180, 180))
+    rect(controls, 22, 17, 20, 20, (255, 255, 255))
+    write_png(out / "a11y/low-contrast.png", controls)
     # Delivery tuning: a source image and the currently shipped encoding of it.
     write_png(out / "delivery/source.png", photo())
     write_png(out / "delivery/current.png", photo(noise=2))

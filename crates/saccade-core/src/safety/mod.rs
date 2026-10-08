@@ -638,7 +638,7 @@ pub fn run(path: &Path, out: &Path, options: &Options) -> Result<SafetyReport> {
 }
 
 /// Reject HDR and transparent inputs rather than guessing their displayed light.
-pub(crate) fn opaque(path: &Path) -> Result<image::RgbImage> {
+pub fn opaque(path: &Path) -> Result<image::RgbImage> {
     if crate::hdr::is_hdr_path(path) {
         return Err(Error::Config(
             "pre-check requires SDR sRGB; export the displayed HDR tone-map first".into(),

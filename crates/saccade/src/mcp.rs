@@ -2288,7 +2288,7 @@ impl Server {
                 }
             }
             #[cfg(feature = "prechecks")]
-            ("saccade_measure", op @ ("safety" | "a11y")) => {
+            ("saccade_measure", op @ ("safety" | "a11y" | "a11y_auto")) => {
                 let name = format!("saccade_{op}");
                 let (structured, text) =
                     crate::precheck_mcp::call(&name, &mapped, &|key, path| self.resolve(key, path))
@@ -2768,7 +2768,7 @@ fn tool_schemas() -> Value {
     for old in crate::precheck_mcp::schemas() {
         let mut schema = old["inputSchema"].clone();
         if let Some(props) = schema["properties"].as_object_mut() {
-            props.insert("operation".into(),json!({"const":if old["name"]=="saccade_safety"{"safety"}else{"a11y"},"type":"string"}));
+            props.insert("operation".into(),json!({"const":if old["name"]=="saccade_safety"{"safety"}else if old["name"]=="saccade_a11y_auto"{"a11y_auto"}else{"a11y"},"type":"string"}));
             if let Some(out) = props.remove("out_dir") {
                 props.insert("out".into(), out);
             }

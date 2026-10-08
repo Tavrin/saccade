@@ -101,6 +101,8 @@ mod outdirs;
 mod perf_cmd;
 // wave10
 #[cfg(feature = "prechecks")]
+mod auto_a11y_cmd;
+#[cfg(feature = "prechecks")]
 mod precheck;
 #[cfg(all(feature = "prechecks", feature = "mcp"))]
 mod precheck_mcp;
@@ -304,6 +306,9 @@ impl From<MetricArg> for Metric {
 
 #[derive(Subcommand)]
 enum Command {
+    /// Automatic offline image accessibility pre-checks (requires prechecks).
+    #[cfg(feature = "prechecks")]
+    A11y(auto_a11y_cmd::Args),
     // laneD
     /// Bounded folder or manifest intake with resumable rows and review summaries.
     Batch(batch_cmd::Args),
@@ -1368,6 +1373,8 @@ fn dispatch(command: Command, record_absolute_paths: bool) -> Result<u8, CliErro
         Command::Text(args) => text_cmd::run(args),
         Command::OpticalCode(args) => optical_code_cmd::run(args),
         Command::Tofu(args) => text_quality_cmd::tofu(args),
+        #[cfg(feature = "prechecks")]
+        Command::A11y(args) => auto_a11y_cmd::run(args),
         Command::TextLegibility(args) => text_quality_cmd::legibility(args),
         Command::CriticalText(args) => critical_text_cmd::run(args),
         Command::Sensitivity(args) => sensitivity_cmd::run(args),

@@ -2,6 +2,19 @@
 
 ## Unreleased
 
+- Add offline `a11y auto IMAGE|DIR --out DIR`, typed library checks and deterministic
+  MCP `saccade_measure` operation `a11y_auto`: pinned provisioned PaddleOCR detection,
+  model-free text/UI candidates, contrast, pixel legibility, tofu and colour loss.
+  Missing detections and ambiguous evidence remain explicit, with skipped JUnit cases.
+- **0.x breaking library change:** accessibility policy moved from
+  `saccade_core::a11y` to `saccade_a11y::a11y`; automatic policy is
+  `saccade_a11y::auto` (also `saccade_a11y::run`). Contrast ratio and the two-cluster
+  estimator are `saccade_core::contrast`; text-quality, colour simulation and OCR
+  detection remain in core. Accessibility threshold entries moved out of the core
+  safety table into the extension; declared contrast behaviour is unchanged.
+- Publish the first-party `saccade-a11y` extension between core and CLI, with
+  permanent generated cross-domain detection and false-PASS evaluation.
+
 ## 0.2.10 (2026-10-07)
 
 - Add mapping-driven `capture conform --legacy-map` checks for historical records,

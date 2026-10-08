@@ -255,7 +255,6 @@ fn maintained_instructions_do_not_invoke_removed_commands() {
         "rank",
         "sequence",
         "safety",
-        "a11y",
         "watch",
         "runs",
         "unblind",

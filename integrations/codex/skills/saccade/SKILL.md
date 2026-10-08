@@ -17,7 +17,7 @@ saccade inspect evidence REPORT_JSON --entry NAME --out EVIDENCE
 
 Read validity/performance, `data.pass_with_local_change`. Exits: 1 fail, 2 unavailable; `performance_rejected` may exit 0.
 `--require-valid-arms`: mismatch (3), missing identity (4); declare variables; inspect exceptions. Mixed: `compare = "mapped_only"`; inspect `unmapped`/`outcomes`. [Arms](../docs/arm-validity.md).
-Identity binds samples, not approval/timing.
+Identity binds samples; no approval/timing.
 
 `review` previews; requests bind hashes. CLI unattested; workbench token-gated;
 `automated` is not human. [Signed policy](../docs/signed-approvals.md):
@@ -43,23 +43,23 @@ Browser/sweep masks `neutralize`; core `exclude`. Read exclusion audits.
 
 `sweep plan|compare`: retain failures; `imgtune audit|search`: delivery;
 `design pull|compare`: unavailable variables.
-`--baseline last-good`: passing hashes, no approval.
+`--baseline last-good`: pass hashes, no approval.
 `notify`: authorization/credentials. [Products](../docs/wave5-mcp.md).
 
-`capabilities --json`: caps; `compare --question`: no fallback.
-`--align`/`--resample`: exclusions; `hash`/`dedupe`: candidates, never delete.
+`capabilities --json`; `compare --question`: no fallback.
+`--align`/`--resample`: exclusions; `hash`/`dedupe`: candidates, no deletion.
 `similar`/`index`: pins; `index export-inputs|calibrate`: parity/holdout.
 `text`: source-bound. [Pages](../docs/documents.md): multipage needs `--page-map`.
 [timed-text](../docs/timed-text.md). `assess`: content-dependent;
 `inspect-image`: provenance/C2PA, never authenticity. [Compare](../docs/choosing-a-comparison.md).
 
-`models list`: pins; inference: cache/runtime; never pull.
+`models list`: pins; inference: cache/runtime; no pulls.
 Vision advice cannot override verdicts.
 [Vision](../docs/wave7.md). [TrustMark](../docs/trustmark.md): BCH verification.
 
 [Rendering](../docs/render-evidence.md): read `required_effects[].failures` even at zero FLIP.
 Declare experiment keys; opt into spatial/layer/fixed-camera analysis.
-`experiment reference`: noisy references; `review trial`: blind judgments.
+`experiment reference`: noisy refs; `review trial`: blind judgments.
 Public galleries only. [Clocks](../docs/gpu-clock-mapping.md): warmup/noise;
 structure/preferences grant no timing authority.
 
@@ -69,23 +69,21 @@ unsigned credits, draft descriptions. `keyframes`: ffmpeg/ffprobe or frames;
 [Media](../docs/media.md), [Python](../docs/python.md), [API](../docs/api.md).
 SigLIP 2 pinned; retain model; prune complete archives only.
 
-[Text](../docs/critical-text.md): all required.
-
-[OCR](../docs/text.md): PP-OCRv5 (`ocr`); keep accents/source hashes; CTC confidence uncalibrated.
-`ocr-provider`: bound Mistral image/PDF fixtures or authorized egress/spend-capped calls.
+[Text](../docs/critical-text.md): all required. [OCR](../docs/text.md): PP-OCRv5 (`ocr`); accents/hashes; CTC uncalibrated.
+`ocr-provider`: bound Mistral fixtures or authorized capped egress.
+[A11y](../docs/safety-a11y.md): `a11y auto`/MCP `a11y_auto` (`prechecks`); candidates only.
 
 `schema list|get|path`, `perf validate FILE --json`; [capture](../docs/capture-kit.md).
 `noise build REPEATS...`, `compare --export-maps --noise-from REPEATS... --require-scope`.
 [Arm policies](../docs/arm-validity.md): null is a value; `--ignore` waives missing fields; `--allow-unreached` requires exact observations; maps select `record_files`.
-
 [G12](../docs/assist-qualification.md): fixture; live needs reviewed ceilings.
 
-[Experiments](../docs/experiments-wave11.md): timing/settling.
+[Timing/settling](../docs/experiments-wave11.md).
 [Motion stats/calibration](../docs/motion-stats.md).
 [Animation](../docs/animated-lod.md).
 
 [Print](../docs/print.md): `print`; no press approval.
-[Coverage](../docs/coverage.md). [Splits](../docs/split-review.md): clean never proves no leakage.
+[Coverage](../docs/coverage.md). [Splits](../docs/split-review.md): clean is not leakage proof.
 [Rasters](../docs/raster.md): `geo`.
 
 [Replay](../docs/replay.md): `replay pack|verify`.

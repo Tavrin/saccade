@@ -18,7 +18,8 @@ On a tag push, three independent paths run:
 - Binary builds, packaging and four-platform qualification publish the GitHub
   release automatically, including archives, checksums and generated notes.
 - `python-wheels.yml` builds and publishes PyPI wheels and the sdist.
-- `release.yml` publishes `saccade-core`, then `saccade`, then the MCP manifest.
+- `release.yml` publishes `saccade-core`, then `saccade-print`, `saccade-a11y`,
+  `saccade-geo`, `saccade`, then the MCP manifest.
   These jobs are independent of binary qualification and PyPI. A failure leaves
   any successful publications in place and makes the affected job fail.
 
@@ -150,3 +151,10 @@ dry run as the legacy ones (`gh workflow run release.yml --ref <branch> -f tag=v
    (prefer a CI job with npm provenance over a laptop token).
 
 The package declares `@playwright/test` as a peer dependency; no browser runtime enters the Rust core.
+
+## Accessibility extension
+
+Publish in dependency order: `saccade-core`, `saccade-print`, `saccade-a11y`,
+`saccade-geo`, then `saccade`. The tag workflow checks and authenticates each
+crate separately. Include the accessibility extension in workspace hygiene,
+package README inventory and guide validation; local tests do not prove publication.

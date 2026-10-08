@@ -10,8 +10,14 @@ fn tool(id: u64, name: &str, args: Value) -> Value {
     json!({"jsonrpc":"2.0","id":id,"method":"tools/call","params":{"name":name,"arguments":args}})
 }
 fn run(root: &Path, out: &Path, extra: &[&str], messages: &[Value]) -> Vec<Value> {
-    let mut child = Command::new(BIN)
-        .arg("mcp")
+    let policy = tempfile::NamedTempFile::new().unwrap();
+    let mut command = Command::new(BIN);
+    if !extra.contains(&"--user-config") {
+        command.arg("mcp").arg("--user-config").arg(policy.path());
+    } else {
+        command.arg("mcp");
+    }
+    let mut child = command
         .arg("--root")
         .arg(root)
         .arg("--out-root")
