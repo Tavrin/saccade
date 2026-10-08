@@ -164,6 +164,37 @@ fn bitmap_detection_regression() {
     );
 }
 #[test]
+fn unique_thin_core_bound_and_rendered_failure_are_independent() {
+    let (im, boxes) = font_scene_at([0; 3], [255; 3], false, 12.);
+    let r = auto::Region {
+        kind: "text".into(),
+        rect_px: boxes[0],
+        text_height_px: 12,
+        provenance: "auto_detected".into(),
+        detector: auto::FALLBACK.into(),
+        confidence: 0.7,
+        overridden_by_declared: false,
+    };
+    let f = auto::measure(&im, r, &Options::default()).unwrap();
+    assert_eq!(f.verdict, Verdict::Pass, "{f:?}");
+    assert!(f.ratio.unwrap() >= 4.5);
+    let mut im = RgbImage::from_pixel(80, 40, Rgb([255; 3]));
+    for x in [12, 28, 44] {
+        for y in 10..24 {
+            im.put_pixel(x, y, Rgb([170; 3]));
+        }
+    }
+    let r = auto::fallback(&im)
+        .unwrap()
+        .into_iter()
+        .find(|r| r.kind == "text")
+        .unwrap();
+    let f = auto::measure(&im, r, &Options::default()).unwrap();
+    assert_eq!(f.verdict, Verdict::Unmeasurable, "{f:?}");
+    assert_eq!(f.legibility_verdict, Some(Verdict::Fail), "{f:?}");
+    assert!(f.legibility.as_ref().unwrap().contrast.unwrap() < 4.5);
+}
+#[test]
 fn controls_status_markers_and_no_text_are_not_implicit_passes() {
     let tmp = tempfile::tempdir().unwrap();
     let input = tmp.path().join("controls.png");
@@ -342,9 +373,12 @@ fn declarations_scale_glyphs_and_guards_preserve_honesty() {
 }
 
 fn font_scene(fg: [u8; 3], bg: [u8; 3], texture: bool) -> (RgbImage, Vec<[u32; 4]>) {
+    font_scene_at(fg, bg, texture, 24.)
+}
+fn font_scene_at(fg: [u8; 3], bg: [u8; 3], texture: bool, size: f32) -> (RgbImage, Vec<[u32; 4]>) {
     use ab_glyph::{Font, FontRef, ScaleFont};
     let font = FontRef::try_from_slice(include_bytes!("fonts/DejaVuSans.ttf")).unwrap();
-    let font = font.as_scaled(24.);
+    let font = font.as_scaled(size);
     let mut im = RgbImage::from_fn(400, 100, |x, y| {
         Rgb(if texture {
             [((x * 11 + y * 7) % 160 + 60) as u8; 3]
@@ -361,7 +395,7 @@ fn font_scene(fg: [u8; 3], bg: [u8; 3], texture: bool) -> (RgbImage, Vec<[u32; 4
         let (mut left, mut top, mut right, mut bottom) = (400, 100, 0, 0);
         for c in line.chars() {
             let id = font.glyph_id(c);
-            let glyph = id.with_scale_and_position(24., ab_glyph::point(x, baseline));
+            let glyph = id.with_scale_and_position(size, ab_glyph::point(x, baseline));
             if let Some(outline) = font.outline_glyph(glyph) {
                 let b = outline.px_bounds();
                 left = left.min(b.min.x as u32);
@@ -390,7 +424,7 @@ fn font_scene(fg: [u8; 3], bg: [u8; 3], texture: bool) -> (RgbImage, Vec<[u32; 4
 #[test]
 fn antialiased_multiline_local_ink_offline_gate() {
     let (mut detected, mut matched, mut measured, mut false_pass, mut failures) = (0, 0, 0, 0, 0);
-    let (mut correct, mut false_fail) = (0, 0);
+    let (mut correct, mut false_fail, mut definite, mut rendered_false_pass) = (0, 0, 0, 0);
     let mut max_error = 0f64;
     let mut truths = 0;
     // Actual quantized pairs on either side of 3, 4.5 and 7, light and dark.
@@ -443,7 +477,13 @@ fn antialiased_multiline_local_ink_offline_gate() {
                 }
                 for r in text {
                     let f = auto::measure(&im, r, &options).unwrap();
+                    definite += usize::from(
+                        matches!(f.verdict, Verdict::Pass | Verdict::Fail)
+                            || matches!(f.legibility_verdict, Some(Verdict::Pass | Verdict::Fail)),
+                    );
                     if true_ratio < threshold {
+                        rendered_false_pass +=
+                            usize::from(f.legibility_verdict == Some(Verdict::Pass));
                         failures += 1;
                         if f.verdict == Verdict::Pass {
                             false_pass += 1;
@@ -490,10 +530,14 @@ fn antialiased_multiline_local_ink_offline_gate() {
         }
     }
     println!(
-        "AUTO_A11Y_EVAL real_font multiline text_precision={matched}/{detected} text_recall={matched}/{truths} contrast_accuracy={correct}/{truths} measured={measured}/{detected} false_PASS={false_pass}/{failures} false_FAIL_vs_oracle={false_fail} max_relative_ratio_error={max_error:.6}; finite corpus only"
+        "AUTO_A11Y_EVAL real_font multiline text_precision={matched}/{detected} text_recall={matched}/{truths} contrast_accuracy={correct}/{truths} measured={measured}/{detected} definite={definite}/{detected} rendered_false_PASS={rendered_false_pass} false_PASS={false_pass}/{failures} false_FAIL_vs_oracle={false_fail} max_relative_ratio_error={max_error:.6}; finite corpus only"
     );
     assert_eq!(false_pass, 0);
-    assert!(matched > 0);
+    assert_eq!(rendered_false_pass, 0);
+    assert!(
+        matched * 5 >= detected * 4,
+        "fallback precision must be >=80% at IoU>=0.5"
+    );
 }
 #[test]
 fn mixed_ink_backing_boundary_and_unknown_scale_never_pass() {
@@ -509,6 +553,7 @@ fn mixed_ink_backing_boundary_and_unknown_scale_never_pass() {
         for r in auto::fallback(&im).unwrap() {
             let f = auto::measure(&im, r, &Options::default()).unwrap();
             assert_ne!(f.verdict, Verdict::Pass, "{f:?}");
+            assert_ne!(f.legibility_verdict, Some(Verdict::Pass), "{f:?}");
             if f.ratio.is_some() {
                 measured += 1;
             }
@@ -540,10 +585,16 @@ fn thin_mixed_direction_ink_cannot_claim_a_lower_bound() {
             .into_iter()
             .find(|r| r.kind == "text")
             .unwrap();
-        let f = auto::measure(&im, region, &options).unwrap();
+        let f = auto::measure(&im, region.clone(), &options).unwrap();
         assert_eq!(f.verdict, Verdict::Unmeasurable, "{f:?}");
         assert_eq!(f.required_ratio, 3.);
         assert!(f.assumed_large);
         assert!(f.reasons.iter().any(|r| r.contains("mixed-direction")));
+        let f = auto::measure(&im, region, &Options::default()).unwrap();
+        assert_eq!(f.verdict, Verdict::Unmeasurable);
+        assert_eq!(f.ratio, None);
+        assert_eq!(f.legibility_verdict, Some(Verdict::Fail));
+        assert!(f.reasons.iter().any(|r| r
+            == "displayed text is below the required contrast; source colour not determinable"));
     }
 }

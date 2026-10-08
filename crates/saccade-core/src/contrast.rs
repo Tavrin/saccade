@@ -70,14 +70,24 @@ fn mode(pixels: impl Iterator<Item = [u8; 3]>) -> Option<[u8; 3]> {
 /// Component-local stroke-core estimator in encoded sRGB. Every supported core
 /// colour is checked; the worst component/colour wins. Thin cores are lower bounds.
 pub fn estimate(image: &RgbImage, rect: [f64; 4]) -> Result<Estimate> {
-    estimate_components(image, rect, false)
+    estimate_components(image, rect, false, false)
 }
 /// Check supported UI boundary segments separately against adjacent ring pixels.
 /// A segment occupies an 8x8 tile and requires two core pixels of one colour.
 pub fn estimate_boundary(image: &RgbImage, rect: [f64; 4]) -> Result<Estimate> {
-    estimate_components(image, rect, true)
+    estimate_components(image, rect, true, false)
 }
-fn estimate_components(image: &RgbImage, rect: [f64; 4], boundary: bool) -> Result<Estimate> {
+/// Contrast of displayed stroke cores, independent of source-colour plateau support.
+/// Mixed channel directions are measurable here because actual pixels are the quantity.
+pub fn estimate_rendered(image: &RgbImage, rect: [f64; 4]) -> Result<Estimate> {
+    estimate_components(image, rect, false, true)
+}
+fn estimate_components(
+    image: &RgbImage,
+    rect: [f64; 4],
+    boundary: bool,
+    rendered: bool,
+) -> Result<Estimate> {
     let [x, y, w, h] = crate::regions::resolve_rect(rect, image.width(), image.height())
         .ok_or_else(|| Error::Config("contrast region resolves to zero pixels".into()))?;
     if u64::from(w) * u64::from(h) > crate::general::input::MAX_PIXELS {
@@ -156,7 +166,13 @@ fn estimate_components(image: &RgbImage, rect: [f64; 4], boundary: bool) -> Resu
         };
         for component in segments {
             // Two pixels are meaningful support, including narrow strokes and dots.
-            if component.len() < 2 {
+            if component.len() < 2
+                || (rendered
+                    && (component.len() < 3
+                        || component.iter().map(|i| i / w as usize).max().unwrap_or(0)
+                            - component.iter().map(|i| i / w as usize).min().unwrap_or(0)
+                            < 2))
+            {
                 continue;
             }
             let mut ring = BTreeMap::new();
@@ -214,67 +230,32 @@ fn estimate_components(image: &RgbImage, rect: [f64; 4], boundary: bool) -> Resu
                 entry.0 += 1;
                 entry.1 |= plateau;
             }
-            // Curved/dotted thin bodies can have a unique peak pixel. If no
-            // exact-colour core has two pixels, a top-distance cluster supplies
-            // support; its least contrasting real sample is a lower bound.
-            if !cores.values().any(|(n, _)| *n >= 2) {
-                let mut distances: Vec<_> =
-                    component.iter().map(|i| distance(pixels[*i], bg)).collect();
-                distances.sort_unstable();
-                let cut = distances[((distances.len() - 1) as f64 * 0.9) as usize];
-                let top: Vec<_> = component
-                    .iter()
-                    .filter(|i| distance(pixels[**i], bg) >= cut && distance(pixels[**i], bg) > 0)
-                    .map(|i| pixels[*i])
-                    .collect();
-                if top.len() >= 2 {
-                    let direction = |p: [u8; 3]| {
-                        let d = f64::from(distance(p, bg));
-                        std::array::from_fn::<_, 3, _>(|c| (f64::from(p[c]) - f64::from(bg[c])) / d)
-                    };
-                    let first = direction(top[0]);
-                    if top.iter().all(|p| {
-                        direction(*p)
-                            .into_iter()
-                            .zip(first)
-                            .all(|(a, b)| (a - b).abs() <= 0.1)
-                    }) {
-                        let fg = top
-                            .iter()
-                            .min_by(|a, b| {
-                                contrast_ratio(color::rgb(**a), color::rgb(bg))
-                                    .total_cmp(&contrast_ratio(color::rgb(**b), color::rgb(bg)))
-                            })
-                            .copied();
-                        if let Some(fg) = fg {
-                            cores.insert(fg, (top.len(), false));
-                        }
-                    }
-                }
-            }
+            // Even a unique observed peak is a valid source-colour lower bound
+            // for monotone channel directions. Requiring repeated colour here
+            // selected weaker antialias flanks instead of the actual thin core.
+            // Point/plateau evidence still requires two supported core pixels.
             // Core maxima on an antialiased flank are not separate inks. Supported
             // plateaus retain all distinct colours; without a plateau, retain the
             // farthest supported colour as a thin-stroke lower bound.
             let has_plateau = cores.values().any(|(n, p)| *n >= 2 && *p);
-            let max_distance = cores
-                .iter()
-                .filter(|(_, (n, _))| *n >= 2)
-                .map(|(fg, _)| distance(*fg, bg))
-                .max()
-                .unwrap_or(0);
+            let max_distance = cores.keys().map(|fg| distance(*fg, bg)).max().unwrap_or(0);
             let mut supported = false;
             let segment = component[0];
             for (fg, (n, plateau)) in cores {
-                if n < 2
-                    || (has_plateau && !plateau)
-                    || (!has_plateau && distance(fg, bg) < max_distance)
+                let plateau = plateau && n >= 2;
+                if (!rendered && has_plateau && !plateau)
+                    || ((!has_plateau || rendered) && !plateau && distance(fg, bg) < max_distance)
                 {
                     continue;
                 }
                 // Encoded interpolation with opposite channel directions can
                 // cross a luminance minimum: sampled contrast can exceed ink
                 // contrast. Such a thin sample is not a valid lower bound.
-                if !plateau && (0..3).any(|c| fg[c] < bg[c]) && (0..3).any(|c| fg[c] > bg[c]) {
+                if !rendered
+                    && !plateau
+                    && (0..3).any(|c| fg[c] < bg[c])
+                    && (0..3).any(|c| fg[c] > bg[c])
+                {
                     unknown = true;
                     mixed_thin = true;
                     continue;
@@ -288,17 +269,19 @@ fn estimate_components(image: &RgbImage, rect: [f64; 4], boundary: bool) -> Resu
                     foreground: fg,
                     background: bg,
                     ratio: r,
-                    lower_bound: !plateau,
+                    lower_bound: !plateau && !rendered,
                 });
                 if r < worst {
                     worst = r;
-                    worst_lower = !plateau;
+                    worst_lower = !plateau && !rendered;
                     result.foreground = Some(fg);
                     result.background = Some(bg);
                     result.note = format!(
                         "Worst component {count}, segment pixel {segment}, core colour support {n} pixels; local ring {} pixels (guard 1px, radius 3px, encoded-sRGB range <=6). {}",
                         ring.len(),
-                        if plateau {
+                        if rendered {
+                            "displayed stroke core"
+                        } else if plateau {
                             "stroke-core plateau"
                         } else {
                             "lower bound: thin stroke has no supported plateau"
@@ -308,6 +291,7 @@ fn estimate_components(image: &RgbImage, rect: [f64; 4], boundary: bool) -> Resu
             }
             if !supported && component.iter().any(|i| distance(pixels[*i], bg) >= 1) {
                 unknown = true;
+                result.note.push_str(&format!(" Unsupported core component {count}, {size} ink pixels, max distance {max_distance}.", size=component.len()));
             }
         }
     }

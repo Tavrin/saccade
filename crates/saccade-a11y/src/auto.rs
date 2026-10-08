@@ -10,7 +10,7 @@ pub const SCHEMA: &str = "saccade-auto-a11y.v1";
 /// Report artifact filename.
 pub const FILE: &str = "saccade-auto-a11y.v1.json";
 /// Deterministic edge/stroke grouping detector identity.
-pub const FALLBACK: &str = "edge-stroke-lines/1";
+pub const FALLBACK: &str = "edge-stroke-lines/2";
 /// Precision-first closed component detector identity.
 pub const UI: &str = "closed-edge-components/1";
 /// Bounded analysis: larger captures fail explicitly, without resampling away text.
@@ -287,9 +287,12 @@ pub fn fallback(image: &RgbImage) -> Result<Vec<Region>> {
                     glyph(b)
                         && b[0] >= r[0] + r[2]
                         && b[0] - (r[0] + r[2]) <= r[3] * 2
-                        && b[3].abs_diff(boxes[i].0[3]) <= boxes[i].0[3] / 3 + 1
-                        && (b[1] + b[3]).abs_diff(boxes[i].0[1] + boxes[i].0[3])
-                            <= boxes[i].0[3] / 3 + 1
+                        && b[3].min(r[3]) * 2 >= b[3].max(r[3])
+                        && (b[1] + b[3])
+                            .min(r[1] + r[3])
+                            .saturating_sub(b[1].max(r[1]))
+                            * 2
+                            >= b[3].min(r[3])
                 })
                 .min_by_key(|j| boxes[*j].0[0]);
             let Some(j) = next else {
@@ -307,6 +310,55 @@ pub fn fallback(image: &RgbImage) -> Result<Vec<Region>> {
                 used[j] = true;
             }
             regions.push(region("text", r, (w, h), FALLBACK, 0.7));
+        }
+    }
+    // Rejoin supported fragments of the same line (mixed cap/x-height and
+    // disconnected strokes can split the seed groups). Never bridge distant lines.
+    let aligned = |a: [u32; 4], b: [u32; 4]| {
+        let vertical = (a[1] + a[3])
+            .min(b[1] + b[3])
+            .saturating_sub(a[1].max(b[1]));
+        let gap = a[0]
+            .max(b[0])
+            .saturating_sub((a[0] + a[2]).min(b[0] + b[2]));
+        vertical * 2 >= a[3].min(b[3]) && gap <= a[3].max(b[3]) * 3
+    };
+    let union = |a: [u32; 4], b: [u32; 4]| {
+        let x = a[0].min(b[0]);
+        let y = a[1].min(b[1]);
+        [
+            x,
+            y,
+            (a[0] + a[2]).max(b[0] + b[2]) - x,
+            (a[1] + a[3]).max(b[1] + b[3]) - y,
+        ]
+    };
+    loop {
+        let pair = (0..regions.len()).find_map(|i| {
+            ((i + 1)..regions.len())
+                .find(|j| aligned(regions[i].rect_px, regions[*j].rect_px))
+                .map(|j| (i, j))
+        });
+        let Some((i, j)) = pair else { break };
+        let b = regions.remove(j);
+        regions[i].rect_px = union(regions[i].rect_px, b.rect_px);
+        regions[i].text_height_px = regions[i].text_height_px.max(b.text_height_px);
+    }
+    // Attach remaining substantial letter components to a supported line. This
+    // extends its bounds without allowing isolated components to invent text.
+    for (i, (b, _)) in boxes.iter().enumerate() {
+        if used[i] || !glyph(*b) {
+            continue;
+        }
+        let candidate = padded(*b, (w, h));
+        if let Some(r) = regions.iter_mut().find(|r| {
+            aligned(r.rect_px, candidate)
+                && b[3] <= r.text_height_px * 3 / 2 + 2
+                && b[3] * 2 >= r.text_height_px
+        }) {
+            r.rect_px = union(r.rect_px, candidate);
+            r.text_height_px = r.text_height_px.max(b[3].saturating_sub(1));
+            used[i] = true;
         }
     }
     // Closed compact boundaries only: four supported sides; avoid labelling arbitrary texture as UI.
@@ -373,7 +425,7 @@ pub fn measure(image: &RgbImage, region: Region, options: &Options) -> Result<Fi
         image::Rgba([p[0], p[1], p[2], 255])
     });
     let body_height = if region.kind == "text" && !region.overridden_by_declared {
-        tq::legibility(&rgb, [0, 0, w, h], 0, tq::Policy::default())?.x_height_px
+        tq::line_height(&rgb, [0, 0, w, h])?
     } else {
         None
     };
@@ -418,6 +470,12 @@ pub fn measure(image: &RgbImage, region: Region, options: &Options) -> Result<Fi
         glyph_verdict: Verdict::Unmeasurable,
         reasons: vec![c.note],
     };
+    if options.scale_known && result.region.kind == "text" {
+        result.reasons.push(format!(
+            "explicit scale: robust ascender body height {body_height:?} px, capped by detected height {} px; {} px-per-pt; large-text assumption {large}",
+            result.region.text_height_px, options.px_per_pt
+        ));
+    }
     if !options.scale_known && result.region.kind == "text" {
         result
             .reasons
@@ -471,6 +529,12 @@ pub fn measure(image: &RgbImage, region: Region, options: &Options) -> Result<Fi
             result.glyph_verdict = Verdict::Warn;
         }
         result.reasons.extend(tofu.reasons);
+        if c.verdict == "WARN" && v == Verdict::Fail {
+            result.reasons.push(
+                "displayed text is below the required contrast; source colour not determinable"
+                    .into(),
+            );
+        }
         result.legibility = Some(q);
     }
     result.verdict = match result.ratio {
@@ -507,7 +571,10 @@ impl Report {
                 s.push_str(&format!("  {} {}: {}\n", d.detector, d.state, d.reason));
             }
             for f in &im.automatic {
-                s.push_str(&format!("  {} {} {:?}: ratio {:?}, requires {}:1; {} confidence {}; legibility {:?}, glyphs {}\n",f.verdict,f.region.kind,f.region.rect_px,f.ratio,f.required_ratio,f.region.detector,f.region.confidence,f.legibility_verdict,f.glyph_verdict));
+                s.push_str(&format!("  WCAG source-colour {} {} {:?}: ratio {:?}, requires {}:1; {} confidence {}; rendered legibility {:?} (ratio {:?}); glyphs {}\n",f.verdict,f.region.kind,f.region.rect_px,f.ratio,f.required_ratio,f.region.detector,f.region.confidence,f.legibility_verdict,f.legibility.as_ref().and_then(|q| q.contrast),f.glyph_verdict));
+                for reason in f.reasons.iter().filter(|r| r.starts_with("displayed text")) {
+                    s.push_str(&format!("    {reason}\n"));
+                }
             }
             for c in &im.declared_and_colour_vision.contrast {
                 s.push_str(&format!(
@@ -641,19 +708,19 @@ pub fn run(input: &Path, out: &Path, options: &Options) -> Result<Report> {
     let mut model_status = DetectorStatus {
         detector: "PP-OCRv5-mobile-det/pinned".into(),
         state: "unavailable".into(),
-        reason: "ocr feature or provisioned model cache absent; no downloads attempted".into(),
+        reason: "ocr feature or provisioned model cache absent; no downloads attempted; next action: saccade models pull runtime and saccade models pull ocr".into(),
     };
     #[cfg(feature="ocr")]
     let mut model=options.model_cache.as_deref().and_then(|cache|match saccade_core::general::ocr::Detector::load(cache) {
         Ok(d)=>{model_status.state="available".into();model_status.reason="verified built-in SHA-256; DB mean >=0.6; score is a support lower bound, uncalibrated".into();Some(d)},
-        Err(_)=>{model_status.reason="provisioned pinned detector/runtime unavailable or invalid; no downloads attempted".into();None}
+        Err(_)=>{model_status.reason="provisioned pinned detector/runtime unavailable or invalid; no downloads attempted; next action: saccade models pull runtime and saccade models pull ocr".into();None}
     });
     std::fs::write(
         out.join(".saccade-precheck"),
         b"incomplete automatic pre-check\n",
     )
     .map_err(crate::io_err("writing automatic sentinel".into()))?;
-    let mut report=Report {schema:SCHEMA.into(),report_id:None,source_refs:vec![],verdict:Verdict::Unmeasurable,disclaimer:saccade_core::safety::output::DISCLAIMER.into(),level:options.level,px_per_pt:options.px_per_pt,assumptions:vec!["Minimum measured glyph body height, capped by detected height, / px-per-pt >=18 assumes large text; font size, bold and display scaling are not observed. Without explicit scale, scale unknown: normal-text threshold applied.".into(),"Automatic regions are candidates, not WCAG applicability or complete detection. Fallback misses short, tiny, rotated, joined or textured text; closed-edge UI candidates omit many icons/controls.".into(),"Glyph checks report WARN/UNMEASURABLE, never font completeness. CVD information loss is a candidate warning with no semantic inference.".into()],images:vec![]};
+    let mut report=Report {schema:SCHEMA.into(),report_id:None,source_refs:vec![],verdict:Verdict::Unmeasurable,disclaimer:saccade_core::safety::output::DISCLAIMER.into(),level:options.level,px_per_pt:options.px_per_pt,assumptions:vec!["Upper-quartile ascender-height letter body (small detached marks excluded), capped by detected height, / px-per-pt >=18 assumes large text; font size, bold and display scaling are not observed. Without explicit scale, scale unknown: normal-text threshold applied.".into(),"Automatic regions are candidates, not WCAG applicability or complete detection. Fallback misses short, tiny, rotated, joined or textured text; closed-edge UI candidates omit many icons/controls.".into(),"Glyph checks report WARN/UNMEASURABLE, never font completeness. CVD information loss is a candidate warning with no semantic inference.".into()],images:vec![]};
     for im in declared.images {
         let image = saccade_core::safety::opaque(&out.join(&im.original))?;
         let mut regions = fallback(&image)?;
@@ -697,7 +764,7 @@ pub fn run(input: &Path, out: &Path, options: &Options) -> Result<Report> {
                 }
                 Err(_) => {
                     status.state = "unavailable".into();
-                    status.reason = "pinned detector inference failed; fallback retained".into();
+                    status.reason = "pinned detector inference failed; fallback retained; next action: saccade models pull runtime and saccade models pull ocr".into();
                 }
             }
         }

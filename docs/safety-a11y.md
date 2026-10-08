@@ -179,7 +179,7 @@ Contrast uses connected ink selected by encoded-sRGB difference from spatial
 background estimates. Each component uses a ring at radius three pixels with a
 one-pixel guard band; ring channel range must be <=6 encoded levels. Local maxima
 of colour distance select stroke cores; every colour with at least two supported
-core pixels is checked, and the worst component wins. Text plateau support also requires a one-pixel eroded ink interior and colour
+core pixels is checked as point evidence, and the worst component wins. Text plateau support also requires a one-pixel eroded ink interior and colour
 separation above the six-level ring tolerance; a repeated antialias edge block
 is insufficient. Mixed channel directions require a full 3x3 colour plateau.
 A core without a supported
@@ -188,11 +188,13 @@ ring or unsupported component abstains. The notes identify the worst component,
 colour support and local ring. UI outlines use 8x8 boundary tiles with at least
 two core pixels of one colour per segment; the worst supported segment wins.
 A supported plateau below target establishes FAIL even if another core is thin.
-A diffuse local background still abstains. Unsupported exact-colour peaks can use
-a supported top-distance cluster with a consistent colour direction; its least
-contrasting sample is a lower bound. Opposite channel directions cannot supply
-a thin-stroke lower bound because encoded interpolation can cross a luminance
-minimum.
+A diffuse local background still abstains. A unique stroke peak is sufficient
+for a lower bound when channel directions are monotone: requiring an identical
+second sample could select a pale antialias flank instead of the actual core.
+Opposite channel directions cannot supply a thin-stroke lower bound because
+encoded interpolation can cross a luminance minimum. Rendered legibility uses
+actual core pixels, retaining weak supported colours; detached bodies smaller
+than three pixels high are excluded consistently with its glyph-body analysis.
 Declared-region contrast values can therefore change.
 Transparency/HDR are rejected.
 
@@ -266,7 +268,7 @@ cache (override with `--model-cache DIR`) when the
 `ocr` feature, verified built-in detection pin and ONNX runtime are provisioned.
 No recognition model/dictionary is needed and no download or paid/network call is
 attempted. Absence, invalid pins/runtime and inference failure are explicitly
-`unavailable`. The model-free `edge-stroke-lines/1` fallback groups at least three
+`unavailable`. The model-free `edge-stroke-lines/2` fallback groups at least three
 aligned similar-height edge components; its support score is 0.7, not a probability.
 `closed-edge-components/1` labels compact boundaries with support on all four
 sides as UI candidates (score 0.75). Its precision-first rule misses many icons,
@@ -275,7 +277,7 @@ UI applicability under SC 1.4.11. A run with zero text candidates explicitly say
 “no text detected by …” and cannot have an automatic PASS verdict.
 
 Text contrast uses SC 1.4.3 AA 4.5:1 normal / 3:1 large or SC 1.4.6 AAA 7:1 normal /
-4.5:1 large. UI contrast targets SC 1.4.11's 3:1. Minimum measured glyph body height, capped by detected height, divided by
+4.5:1 large. UI contrast targets SC 1.4.11's 3:1. Upper-quartile ascender-height letter-body, excluding small detached marks and capped by detected height, divided by
 `--px-per-pt` >=18 is the **large-text assumption**, used only with explicit scale. Without `--px-per-pt`,
 scale is unknown and the normal-text threshold applies. Body bounds do not establish a font's point size,
 boldness, device pixel ratio or final display size. No 14pt-bold inference is made.
@@ -285,6 +287,10 @@ Core's shared component-local estimator produces swatches and ratio. Nonuniform
 local backgrounds and unsupported cores produce UNMEASURABLE contrast. Independent
 text-quality evidence records the worst component's contrast, body-height proxy,
 sharpness and stroke widths; these are pixel checks, not human reading tests.
+Rendered contrast measures actual displayed cores: a thin core below target is a
+legibility FAIL even when the WCAG source-colour verdict is UNMEASURABLE. Reports
+separate the two verdicts and give each ratio. Missing pinned detection reports
+`next action: saccade models pull runtime and saccade models pull ocr`.
 Automatic size/sharpness/stroke proxy defects are WARN rather than a font-size or
 human-readability FAIL. Explicit declared pixel policies retain their FAIL checks.
 Missing-glyph shapes are WARN candidates; their absence is UNMEASURABLE coverage,
@@ -309,8 +315,7 @@ Exact finite-corpus counts and bounds are printed by
 `cargo test -p saccade-a11y --test automatic -- --nocapture`.
 This gate does not qualify PaddleOCR runtime execution or real-world detection.
 Strict core support can leave thin anti-aliased glyphs unmeasurable even on flat
-backgrounds. The minimum-body size proxy can also retain the normal-text threshold
-for a visually large font; it does not establish typographic size.
+backgrounds. The robust letter-body size proxy still does not establish typographic size.
 
 MCP mirrors this through `saccade_measure` operation `a11y_auto` with `input`, `out`,
 optional `config`, `level`, `px_per_pt`, `model_cache`, `junit`, under the same

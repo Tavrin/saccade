@@ -3,13 +3,13 @@
 ## Unreleased
 
 - Prevent strong ink from hiding weak components/colours, and measure each component
-  against its local background. Thin strokes below threshold abstain as lower bounds.
+  against its local background. Thin strokes below threshold abstain only for WCAG source-colour verdicts;
+  rendered legibility measures the displayed pixels and can FAIL.
   Unknown display scale applies normal-text thresholds; CLI and MCP use the same
   default provisioned OCR cache. Automatic schema requires positive PASS evidence.
-  Text-quality consumers retain independently measured size/blur failures and
-  confirmed plateau failures; uncertain thin warning and perspective-resampled
-  control fixtures now abstain rather
-  than qualify a PASS or a contrast FAIL. Automatic geometry proxies produce WARN.
+  Text-quality and critical-text consumers measure rendered contrast separately
+  from source colour. Explicit scale uses robust letter height; fallback line
+  grouping handles ascenders and descenders. Missing OCR reports model pull actions.
 
 - Add offline `a11y auto IMAGE|DIR --out DIR`, typed library checks and deterministic
   MCP `saccade_measure` operation `a11y_auto`: pinned provisioned PaddleOCR detection,

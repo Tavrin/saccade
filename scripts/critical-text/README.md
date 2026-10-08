@@ -26,11 +26,11 @@ python3 scripts/critical-text/fixtures.py --binary /path/to/saccade \
 ```
 
 Qualification does not regenerate, fetch or use fonts/models. All 11 cases must
-pass an actual FLIP mean gate at 0.02; the critical gate must fail four known
-defects (decimal, currency space, minus and tiny warning edit), pass five
-unchanged/typography controls, and abstain on the unchanged and faded thin warning.
-The faded warning still has a known nonzero mean edit; its below-target contrast
-lower bound is not a qualified contrast FAIL. Policy thresholds are unchanged. Failing hashes, exit codes, states,
+pass an actual FLIP mean gate at 0.02; the critical gate fails five defects
+(decimal, currency space, minus, tiny warning edit and faded warning) and passes
+six unchanged/typography controls. Rendered
+contrast uses displayed pixels even when source colour is uncertain. Policy
+thresholds are unchanged. Failing hashes, exit codes, states,
 image identities or declared failure reasons stop the run. JSON reports and
 `qualification.json` record binary, manifest and report identities.
 

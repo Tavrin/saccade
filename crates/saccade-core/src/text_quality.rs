@@ -179,4 +179,4 @@ pub fn unavailable_ocr(reason: impl Into<String>) -> OcrEvidence {
     }
 }
 mod pixels;
-pub use pixels::{legibility, tofu, validate_rect};
+pub use pixels::{legibility, line_height, tofu, validate_rect};

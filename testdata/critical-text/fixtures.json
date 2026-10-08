@@ -164,8 +164,8 @@
       "policy": "document-warning/policy.json",
       "mean_threshold": 0.02,
       "mean_exit": 0,
-      "critical_exit": 4,
-      "expected_reason": "critical evidence insufficient"
+      "critical_exit": 0,
+      "expected_reason": null
     },
     {
       "name": "document-warning/edited",
@@ -190,8 +190,8 @@
       "policy": "document-warning/policy.json",
       "mean_threshold": 0.02,
       "mean_exit": 0,
-      "critical_exit": 4,
-      "expected_reason": "critical evidence insufficient"
+      "critical_exit": 1,
+      "expected_reason": "critical_pixel_threshold_failed"
     }
   ]
 }

@@ -357,6 +357,29 @@ fn stroke(f: &Field, c: &Component) -> f64 {
     }
     quantile(runs, 0.25)
 }
+/// Robust letter-body height for explicit display-scale classification.
+/// Excludes small detached marks and uses the upper quartile of ascender-height bodies;
+/// unlike the minimum legibility metric, punctuation cannot set the line size.
+pub fn line_height(image: &RgbaImage, r: [u32; 4]) -> Result<Option<f64>> {
+    let Some(f) = field(image, r, None, true)? else {
+        return Ok(None);
+    };
+    let Some(cs) = components(&f) else {
+        return Ok(None);
+    };
+    let max_height = cs
+        .iter()
+        .filter(|c| c.indices.len() >= 3)
+        .map(|c| c.r[3])
+        .max()
+        .unwrap_or(0);
+    let heights: Vec<_> = cs
+        .iter()
+        .filter(|c| c.indices.len() >= 3 && c.r[3] >= 3 && c.r[3] * 5 >= max_height * 4)
+        .map(|c| c.r[3] as f64)
+        .collect();
+    Ok((!heights.is_empty()).then(|| quantile(heights, 0.75)))
+}
 /// Measure one region. No glyphs, clipping, mixed/transparent backgrounds abstain.
 pub fn legibility(
     image: &RgbaImage,
@@ -422,7 +445,7 @@ pub fn legibility(
         let p = image.get_pixel(x, y);
         image::Rgb([p[0], p[1], p[2]])
     });
-    let estimate = crate::contrast::estimate(
+    let estimate = crate::contrast::estimate_rendered(
         &opaque,
         [
             r[0] as f64 / image.width() as f64,
@@ -431,14 +454,8 @@ pub fn legibility(
             r[3] as f64 / image.height() as f64,
         ],
     )?;
-    let point_failure = estimate
-        .lowest_point()
-        .filter(|p| p.ratio < policy.minimum_contrast);
-    let contrast = point_failure.map(|p| p.ratio).or(estimate.ratio);
-    let uncertain_contrast = contrast.is_none()
-        || (estimate.lower_bound
-            && point_failure.is_none()
-            && contrast.is_some_and(|c| c < policy.minimum_contrast));
+    let contrast = estimate.ratio;
+    let uncertain_contrast = contrast.is_none();
     let height = cs
         .iter()
         .map(|c| c.r[3] as f64)
@@ -483,24 +500,17 @@ pub fn legibility(
     if detect(&f, r).is_some_and(|v| !v.is_empty()) {
         result.reasons.push("missing_glyph_candidate".into());
     }
-    if point_failure.is_some()
-        || (!uncertain_contrast && contrast.is_some_and(|c| c < policy.minimum_contrast))
-    {
+    if contrast.is_some_and(|c| c < policy.minimum_contrast) {
         result.reasons.push("low_contrast".into());
     }
     // Unknown contrast cannot hide independently measured size/blur/stroke
-    // failures. Conversely a thin lower bound alone never establishes FAIL.
+    // failures. Thin displayed cores can establish rendered-contrast FAIL.
     if uncertain_contrast {
         result.state = if result.reasons.is_empty() {
             State::InsufficientEvidence
         } else {
             State::Illegible
         };
-        if contrast.is_some() && estimate.lower_bound && point_failure.is_none() {
-            result
-                .reasons
-                .push("contrast_lower_bound_below_target".into());
-        }
         result.reasons.push(estimate.note);
         return Ok(result);
     }

@@ -79,9 +79,10 @@ legal sufficiency or publication approval. Text is inert data.
 
 [`testdata/critical-text`](../testdata/critical-text) includes app decimal and
 currency-space edits, a scientific figure with a lost minus sign, and a document
-page with a tiny warning edit. A faded warning retains the source text; its thin-stroke contrast is a lower
-bound below target, so it abstains. The unchanged tiny warning also abstains;
-its baseline legibility is not established by the component-local estimator. Unchanged captures and explicitly accepted no-break-space and
+page with a tiny warning edit. A faded warning retains source text and fails
+rendered pixel contrast. The unchanged tiny warning retains its original PASS,
+with measured core contrast above its declared threshold. Unchanged captures and
+explicitly accepted no-break-space and
 hyphen variants are controls. Fonts are Liberation Sans under SIL OFL 1.1;
 fixture and generator provenance, font/licence hashes, Pillow version, exact
 asset hashes and declared expected exits are in `fixtures.json`.
@@ -93,9 +94,7 @@ python3 scripts/critical-text/fixtures.py --binary /path/to/saccade \
 
 This checks shipped assets without font or model access. The qualifier asserts
 actual mean-only FLIP compare exit 0 at threshold 0.02 on every case, critical
-exit 1 on four known defects, exit 0 on five controls and exit 4 on the two
-thin-warning cases. The faded edit still must have nonzero measured FLIP mean;
-an abstention is a non-pass, not a qualified pixel-contrast failure. Changed fixture hashes,
+exit 1 on all five defects and exit 0 on six controls. Changed fixture hashes,
 absent edits, unexpected states and wrong reasons fail. Report receipts include
 binary and fixture identities. Regeneration needs Pillow and the installed OFL
 font; see [fixture instructions](../scripts/critical-text/README.md).
