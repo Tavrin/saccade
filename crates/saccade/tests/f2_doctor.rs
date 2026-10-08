@@ -17,6 +17,8 @@ fn doctor_missing_optional_dependencies_are_informational() {
             .current_dir(tmp.path())
             .env("PATH", tmp.path())
             .env("XDG_CACHE_HOME", tmp.path())
+            .env("XDG_CONFIG_HOME", tmp.path())
+            .env("SACCADE_MODELS_DIR", tmp.path().join("missing-models"))
             .env("ORT_DYLIB_PATH", tmp.path().join("missing-runtime"));
         if json {
             command.arg("--json");

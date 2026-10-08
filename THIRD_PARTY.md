@@ -966,3 +966,11 @@ Unlicense), already recorded above. Generated evaluation glyphs/scenes are origi
 code-drawn bitmap fixtures under the project licence. Optional OCR reuses the
 existing pinned PaddleOCR detection model and ONNX CPU runtime receipts; no new
 model, runtime or recognition dependency is introduced.
+
+## Automatic accessibility test font and rasterizer
+
+`crates/saccade-a11y/tests/fonts/DejaVuSans.ttf` is unmodified DejaVu Sans,
+Bitstream Vera permissive font licence; DejaVu changes are public domain.
+Full notice: `tests/fonts/LICENSE.txt` in the extension. Used only to generate
+anti-aliased offline test scenes. `ab_glyph` 0.2.32 is Apache-2.0 and supplies
+the test rasterizer (no font downloads).

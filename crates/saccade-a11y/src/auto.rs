@@ -33,8 +33,10 @@ pub struct Options {
     pub config: Option<PathBuf>,
     /// Text contrast target.
     pub level: Level,
-    /// Capture pixels per point; default 96/72, recorded as an assumption.
+    /// Capture pixels per point, used only when scale is explicitly supplied.
     pub px_per_pt: f64,
+    /// Whether the caller supplied physical display scale.
+    pub scale_known: bool,
     /// Provisioned pinned OCR/runtime cache; None means model explicitly unavailable.
     pub model_cache: Option<PathBuf>,
 }
@@ -44,6 +46,7 @@ impl Default for Options {
             config: None,
             level: Level::AA,
             px_per_pt: 96. / 72.,
+            scale_known: false,
             model_cache: None,
         }
     }
@@ -106,11 +109,11 @@ pub struct Finding {
     pub region: Region,
     /// Contrast verdict.
     pub verdict: Verdict,
-    /// Foreground sRGB swatch from the robust two-cluster fit.
+    /// Foreground sRGB swatch from the worst supported local core.
     pub foreground: Option<[u8; 3]>,
-    /// Background sRGB swatch from the robust two-cluster fit.
+    /// Background sRGB swatch from that component’s local ring.
     pub background: Option<[u8; 3]>,
-    /// Two-cluster contrast; absent for ambiguous evidence.
+    /// Worst supported local contrast or thin-stroke bound; absent for ambiguous evidence.
     pub ratio: Option<f64>,
     /// WCAG target, including assumed large text.
     pub required_ratio: f64,
@@ -142,7 +145,7 @@ pub struct ImageReport {
     pub text_detection: String,
     /// Automatic findings, separately attributed from declared checks.
     pub automatic: Vec<Finding>,
-    /// Original and CVD artifacts plus unchanged authoritative contrast checks.
+    /// Original and CVD artifacts plus authoritative declared-region contrast checks.
     pub declared_and_colour_vision: a11y::ImageReport,
 }
 /// End-to-end offline report.
@@ -359,22 +362,6 @@ fn fractional(r: [u32; 4], image: &RgbImage) -> [f64; 4] {
         f64::from(r[3]) / f64::from(image.height()),
     ]
 }
-fn uniform_border(image: &RgbImage, r: [u32; 4]) -> bool {
-    let mut lo = [255u8; 3];
-    let mut hi = [0u8; 3];
-    for y in r[1]..r[1] + r[3] {
-        for x in r[0]..r[0] + r[2] {
-            if x != r[0] && y != r[1] && x + 1 != r[0] + r[2] && y + 1 != r[1] + r[3] {
-                continue;
-            }
-            for (c, v) in image.get_pixel(x, y).0.into_iter().enumerate() {
-                lo[c] = lo[c].min(v);
-                hi[c] = hi[c].max(v);
-            }
-        }
-    }
-    (0..3).all(|c| hi[c] - lo[c] <= 12)
-}
 /// Measure one candidate using the existing contrast and text-quality estimators.
 /// Region geometry is validated; declared overrides produce no automatic PASS/FAIL.
 pub fn measure(image: &RgbImage, region: Region, options: &Options) -> Result<Finding> {
@@ -390,7 +377,8 @@ pub fn measure(image: &RgbImage, region: Region, options: &Options) -> Result<Fi
     } else {
         None
     };
-    let large = region.kind == "text"
+    let large = options.scale_known
+        && region.kind == "text"
         && body_height.is_some_and(|height| {
             height.min(f64::from(region.text_height_px)) / options.px_per_pt >= 18.
         });
@@ -430,6 +418,11 @@ pub fn measure(image: &RgbImage, region: Region, options: &Options) -> Result<Fi
         glyph_verdict: Verdict::Unmeasurable,
         reasons: vec![c.note],
     };
+    if !options.scale_known && result.region.kind == "text" {
+        result
+            .reasons
+            .push("scale unknown: normal-text threshold applied".into());
+    }
     if result.region.overridden_by_declared {
         result.ratio = None;
         result.reasons = vec![
@@ -448,28 +441,15 @@ pub fn measure(image: &RgbImage, region: Region, options: &Options) -> Result<Fi
             },
         )?;
         q.rect_px = result.region.rect_px;
-        if q.x_height_px.is_none() {
-            result.ratio = None;
-            result
-                .reasons
-                .push("no measurable glyph bodies; text contrast applicability unsupported".into());
-        }
         let v = match q.state {
             tq::State::Legible => Verdict::Pass,
-            tq::State::Illegible => Verdict::Fail,
+            tq::State::Illegible if q.reasons.iter().any(|r| r == "low_contrast") => Verdict::Fail,
+            // Automatic geometry/font proxies are heuristic, not a declared
+            // minimum-size policy; keep them reviewable without a false FAIL.
+            tq::State::Illegible => Verdict::Warn,
             _ => Verdict::Unmeasurable,
         };
         result.legibility_verdict = Some(v);
-        // A high-contrast majority must never conceal a failing low-contrast glyph.
-        if let (Some(fit), Some(worst)) = (result.ratio, q.contrast)
-            && worst + 1e-12 < c.threshold
-            && fit + 1e-12 >= c.threshold
-        {
-            result.ratio = None;
-            result.reasons.push(
-                "cluster ratio conceals weaker glyph contrast; abstaining (legibility FAIL)".into(),
-            );
-        }
         let tofu = tq::tofu(
             &rgb,
             None,
@@ -493,13 +473,11 @@ pub fn measure(image: &RgbImage, region: Region, options: &Options) -> Result<Fi
         result.reasons.extend(tofu.reasons);
         result.legibility = Some(q);
     }
-    if !uniform_border(image, result.region.rect_px) {
-        result.ratio = None;
-        result.legibility_verdict = result.legibility_verdict.map(|_| Verdict::Unmeasurable);
-        result.reasons.push("nonuniform/clipped background at measurement border; gradient or contextual boundary ambiguous".into());
-    }
     result.verdict = match result.ratio {
         Some(r) if r + 1e-12 >= c.threshold => Verdict::Pass,
+        Some(_) if result.reasons.iter().any(|s| s.contains("lower bound")) => {
+            Verdict::Unmeasurable
+        }
         Some(_) => Verdict::Fail,
         None => Verdict::Unmeasurable,
     };
@@ -517,7 +495,7 @@ impl Report {
     /// Stable text, with detector misses and region measurements made explicit.
     pub fn text(&self) -> String {
         let mut s = format!(
-            "a11y auto: {}\n{}\npx-per-pt: {} (assumed display scale)\n",
+            "a11y auto: {}\n{}\npx-per-pt: {} (see scale assumption)\n",
             self.verdict, self.disclaimer, self.px_per_pt
         );
         for im in &self.images {
@@ -675,7 +653,7 @@ pub fn run(input: &Path, out: &Path, options: &Options) -> Result<Report> {
         b"incomplete automatic pre-check\n",
     )
     .map_err(crate::io_err("writing automatic sentinel".into()))?;
-    let mut report=Report {schema:SCHEMA.into(),report_id:None,source_refs:vec![],verdict:Verdict::Unmeasurable,disclaimer:saccade_core::safety::output::DISCLAIMER.into(),level:options.level,px_per_pt:options.px_per_pt,assumptions:vec!["Minimum measured glyph body height, capped by detected height, / px-per-pt >=18 assumes large text; font size, bold and display scaling are not observed. Default 96/72 px per point.".into(),"Automatic regions are candidates, not WCAG applicability or complete detection. Fallback misses short, tiny, rotated, joined or textured text; closed-edge UI candidates omit many icons/controls.".into(),"Glyph checks report WARN/UNMEASURABLE, never font completeness. CVD information loss is a candidate warning with no semantic inference.".into()],images:vec![]};
+    let mut report=Report {schema:SCHEMA.into(),report_id:None,source_refs:vec![],verdict:Verdict::Unmeasurable,disclaimer:saccade_core::safety::output::DISCLAIMER.into(),level:options.level,px_per_pt:options.px_per_pt,assumptions:vec!["Minimum measured glyph body height, capped by detected height, / px-per-pt >=18 assumes large text; font size, bold and display scaling are not observed. Without explicit scale, scale unknown: normal-text threshold applied.".into(),"Automatic regions are candidates, not WCAG applicability or complete detection. Fallback misses short, tiny, rotated, joined or textured text; closed-edge UI candidates omit many icons/controls.".into(),"Glyph checks report WARN/UNMEASURABLE, never font completeness. CVD information loss is a candidate warning with no semantic inference.".into()],images:vec![]};
     for im in declared.images {
         let image = saccade_core::safety::opaque(&out.join(&im.original))?;
         let mut regions = fallback(&image)?;

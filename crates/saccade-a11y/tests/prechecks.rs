@@ -234,11 +234,13 @@ fn normal_large_aaa_and_ui_contrast() {
     let input = tmp.path().join("text.png");
     // 118 on white is 4.542:1; 149 on white is 2.995:1.
     RgbImage::from_fn(100, 80, |x, y| {
-        Rgb(if x % 20 < 8 {
-            if y < 40 { [118; 3] } else { [149; 3] }
-        } else {
-            [255; 3]
-        })
+        Rgb(
+            if (12..88).contains(&x) && x % 20 < 8 && (4..36).contains(&(y % 40)) {
+                if y < 40 { [118; 3] } else { [149; 3] }
+            } else {
+                [255; 3]
+            },
+        )
     })
     .save(&input)
     .unwrap();

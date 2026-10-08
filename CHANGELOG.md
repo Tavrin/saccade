@@ -2,18 +2,29 @@
 
 ## Unreleased
 
+- Prevent strong ink from hiding weak components/colours, and measure each component
+  against its local background. Thin strokes below threshold abstain as lower bounds.
+  Unknown display scale applies normal-text thresholds; CLI and MCP use the same
+  default provisioned OCR cache. Automatic schema requires positive PASS evidence.
+  Text-quality consumers retain independently measured size/blur failures and
+  confirmed plateau failures; uncertain thin warning and perspective-resampled
+  control fixtures now abstain rather
+  than qualify a PASS or a contrast FAIL. Automatic geometry proxies produce WARN.
+
 - Add offline `a11y auto IMAGE|DIR --out DIR`, typed library checks and deterministic
   MCP `saccade_measure` operation `a11y_auto`: pinned provisioned PaddleOCR detection,
   model-free text/UI candidates, contrast, pixel legibility, tofu and colour loss.
   Missing detections and ambiguous evidence remain explicit, with skipped JUnit cases.
 - **0.x breaking library change:** accessibility policy moved from
   `saccade_core::a11y` to `saccade_a11y::a11y`; automatic policy is
-  `saccade_a11y::auto` (also `saccade_a11y::run`). Contrast ratio and the two-cluster
+  `saccade_a11y::auto` (also `saccade_a11y::run`). Contrast ratio and the component-local
   estimator are `saccade_core::contrast`; text-quality, colour simulation and OCR
   detection remain in core. Accessibility threshold entries moved out of the core
-  safety table into the extension; declared contrast behaviour is unchanged.
+  safety table into the extension; declared-region contrast values can change: local background rings and supported
+  stroke-core colours replace region-wide two-cluster medians.
 - Publish the first-party `saccade-a11y` extension between core and CLI, with
-  permanent generated cross-domain detection and false-PASS evaluation.
+  permanent generated anti-aliased font, mixed-ink, local-backing and boundary
+  regression evaluation; this finite corpus does not prove cross-domain coverage.
 
 ## 0.2.10 (2026-10-07)
 

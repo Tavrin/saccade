@@ -69,7 +69,8 @@ def generate(out):
         x, y = 100, 550
         box = [x-6, y-6, int(draw.textlength(before, font=font)) + 16, size+18]
         draw.text((x, y), before, font=font, fill='black')
-        variants = [('same', image.copy(), before, 0)]
+        # Thin document glyphs cannot establish the baseline contrast plateau.
+        variants = [('same', image.copy(), before, 4 if name == 'document-warning' else 0)]
         bad = image.copy()
         bd = ImageDraw.Draw(bad)
         if erase:
@@ -103,7 +104,7 @@ def generate(out):
             fd = ImageDraw.Draw(faded)
             fd.rectangle((box[0], box[1], box[0]+box[2]-1, box[1]+box[3]-1), fill='white')
             fd.text((x, y), before, font=font, fill=(210, 210, 210))
-            variants.append(('faded', faded, before, 1))
+            variants.append(('faded', faded, before, 4))
         folder = out / name
         folder.mkdir(exist_ok=True)
         image.save(folder / 'baseline.png', compress_level=9)
@@ -127,7 +128,8 @@ def generate(out):
                           'a_source':f'{name}/baseline-source.json', 'b_source':f'{name}/{variant}-source.json',
                           'policy':f'{name}/policy.json', 'mean_threshold':.02,
                           'mean_exit':0, 'critical_exit':exit_code,
-                          'expected_reason':'critical_pixel_threshold_failed' if variant == 'faded' else
+                          'expected_reason':'critical evidence insufficient' if exit_code == 4 else
+                                            'critical_pixel_threshold_failed' if variant == 'faded' else
                                             'critical_string_mismatch' if exit_code else None})
     files = {str(p.relative_to(out)):sha(p) for p in sorted(out.rglob('*')) if p.is_file() and p.name != 'fixtures.json'}
     write(out / 'fixtures.json', {'provenance':provenance, 'files':files, 'cases':cases})
@@ -146,7 +148,7 @@ def qualify(pack, binary, receipts):
         critical = subprocess.run(argv, capture_output=True, text=True)
         report = json.loads(critical.stdout)
         assert critical.returncode == case['critical_exit'], (case['name'], critical.returncode, report, critical.stderr)
-        assert report['state'] == ('fail' if case['critical_exit'] else 'pass'), case['name']
+        assert report['state'] == {0:'pass', 1:'fail', 4:'insufficient_evidence'}[case['critical_exit']], case['name']
         if case['expected_reason']:
             assert case['expected_reason'] in report['regions'][0]['reasons'], case['name']
         assert report['image_sha256'] == [sha(pack / case['baseline']), sha(pack / case['candidate'])]
@@ -161,7 +163,7 @@ def qualify(pack, binary, receipts):
         entry, = mean_report['entries']
         assert entry['metric_used'] == 'mean' and entry['status'] == 'pass'
         assert entry['value'] <= case['mean_threshold']
-        if case['critical_exit']:
+        if case['critical_exit'] == 1 or case['name'].endswith('/faded'):
             assert entry['metrics']['mean'] > 0, 'known edit not measured'
             assert sha(pack / case['baseline']) != sha(pack / case['candidate']), 'known edit absent'
         write(receipts / (case['name'].replace('/', '-') + '.json'), report)

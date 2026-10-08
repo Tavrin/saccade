@@ -76,7 +76,8 @@ def main():
         r = [12, 12, 396, 68]
         name = f'capture-{number}'
         save(name, image)
-        case('text-legibility', name, 'legible', baseline=baseline_name, regions=[r])
+        # Perspective interpolation introduces thin edge cores without a plateau.
+        case('text-legibility', name, 'insufficient_evidence' if number == 2 else 'legible', baseline=baseline_name, regions=[r], reason='contrast_lower_bound_below_target' if number == 2 else None)
         save(name + '-box', injected)
         case('tofu', name + '-box', 'candidates', witnesses=[[290, 26, 14, 24]] if number != 2 else [], inside=[280, 16, 48, 54])
     # Real font .notdef (DejaVu lacks CJK), injected boxes, actual replacement glyph.

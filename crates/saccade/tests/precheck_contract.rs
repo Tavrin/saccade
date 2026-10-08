@@ -227,6 +227,20 @@ fn automatic_cli_directory_schema_junit_and_mcp_mirror() {
     image::RgbImage::from_pixel(80, 50, image::Rgb([255; 3]))
         .save(input.join("blank.png"))
         .unwrap();
+    image::RgbImage::from_fn(60, 50, |x, y| {
+        image::Rgb(
+            if (10..40).contains(&x)
+                && (10..40).contains(&y)
+                && (x == 10 || x == 39 || y == 10 || y == 39)
+            {
+                [100; 3]
+            } else {
+                [255; 3]
+            },
+        )
+    })
+    .save(input.join("outline.png"))
+    .unwrap();
     let out = root.join("auto-report");
     let junit = root.join("auto.xml");
     let result = cli(&[
@@ -281,7 +295,7 @@ fn automatic_cli_directory_schema_junit_and_mcp_mirror() {
         .unwrap();
     let mut stdin = child.stdin.take().unwrap();
     for msg in [
-        json!({"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"saccade_measure","arguments":{"operation":"a11y_auto","input":"captures","out":"automatic","level":"AAA","px_per_pt":1.5}}}),
+        json!({"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"saccade_measure","arguments":{"operation":"a11y_auto","input":"captures","out":"automatic","level":"AAA"}}}),
         json!({"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"saccade_measure","arguments":{"operation":"a11y_auto","input":"captures","out":"../escape"}}}),
     ] {
         writeln!(stdin, "{msg}").unwrap();
@@ -301,5 +315,23 @@ fn automatic_cli_directory_schema_junit_and_mcp_mirror() {
     )
     .unwrap();
     schema(&artifact, "saccade-auto-a11y.v1.schema.json");
-    assert_eq!(artifact["px_per_pt"], 1.5);
+    assert_eq!(artifact, value);
+    let doc: Value =
+        serde_json::from_str(saccade_core::schema_catalog::get("saccade-auto-a11y.v1").unwrap())
+            .unwrap();
+    let validator = jsonschema::validator_for(&doc).unwrap();
+    let mut impossible = value.clone();
+    impossible["verdict"] = json!("PASS");
+    impossible["images"] = json!([]);
+    assert!(!validator.is_valid(&impossible));
+    impossible = value.clone();
+    impossible["images"][0]["verdict"] = json!("PASS");
+    assert!(!validator.is_valid(&impossible));
+    impossible = value.clone();
+    impossible["images"][1]["automatic"][0]["verdict"] = json!("PASS");
+    impossible["images"][1]["automatic"][0]["ratio"] = Value::Null;
+    assert!(!validator.is_valid(&impossible));
+    impossible = value.clone();
+    impossible["images"][1]["automatic"][0]["region"]["rect_px"][2] = json!(0);
+    assert!(!validator.is_valid(&impossible));
 }

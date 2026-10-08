@@ -67,9 +67,14 @@ pub(crate) fn call(
             let config = string(args, "config")?
                 .map(|p| resolve("config", &p))
                 .transpose()?;
-            let model_cache = string(args, "model_cache")?
+            #[allow(unused_mut)]
+            let mut model_cache = string(args, "model_cache")?
                 .map(|p| resolve("model_cache", &p))
                 .transpose()?;
+            #[cfg(feature = "ocr")]
+            if model_cache.is_none() {
+                model_cache = Some(saccade_core::media::default_model_dir());
+            }
             let level = match string(args, "level")?.as_deref().unwrap_or("AA") {
                 "AA" => saccade_a11y::auto::Level::AA,
                 "AAA" => saccade_a11y::auto::Level::AAA,
@@ -90,6 +95,7 @@ pub(crate) fn call(
                     config: config.clone(),
                     level,
                     px_per_pt,
+                    scale_known: args.get("px_per_pt").is_some(),
                     model_cache: model_cache.clone(),
                 },
             )?;

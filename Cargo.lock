@@ -4559,6 +4559,7 @@ dependencies = [
 name = "saccade-a11y"
 version = "0.2.10"
 dependencies = [
+ "ab_glyph",
  "globset",
  "image",
  "saccade-core",

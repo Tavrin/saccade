@@ -29,9 +29,9 @@ struct AutoArgs {
     /// WCAG text contrast target.
     #[arg(long, value_enum, ignore_case = true, default_value = "AA")]
     level: Level,
-    /// Assumed capture pixels per typographic point; default 96/72.
-    #[arg(long, default_value_t=96. / 72.)]
-    px_per_pt: f64,
+    /// Capture pixels per typographic point; omitted scale uses normal-text threshold.
+    #[arg(long)]
+    px_per_pt: Option<f64>,
     /// Provisioned PaddleOCR cache (default: existing model cache); never downloads.
     #[arg(long)]
     model_cache: Option<PathBuf>,
@@ -56,7 +56,8 @@ pub(crate) fn run(args: Args) -> Result<u8, CliError> {
             Level::Aa => saccade_a11y::auto::Level::AA,
             Level::Aaa => saccade_a11y::auto::Level::AAA,
         },
-        px_per_pt: a.px_per_pt,
+        px_per_pt: a.px_per_pt.unwrap_or(96. / 72.),
+        scale_known: a.px_per_pt.is_some(),
         model_cache: model_cache.clone(),
     };
     let report = saccade_a11y::run(&a.input, &a.out, &options)?;

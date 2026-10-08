@@ -180,7 +180,7 @@ Options:
       --source-ref <SOURCE_REF>
           External capture URI/key (repeatable); recorded in generated reports
       --px-per-pt <PX_PER_PT>
-          Assumed capture pixels per typographic point; default 96/72 [default: 1.3333333333333333]
+          Capture pixels per typographic point; omitted scale uses normal-text threshold
       --report-index <REPORT_INDEX>
           Shared report index destination (default reports/index.jsonl next to each report, inside --out)
       --model-cache <MODEL_CACHE>

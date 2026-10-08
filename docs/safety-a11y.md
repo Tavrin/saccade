@@ -175,14 +175,26 @@ kind = "ui"
 rect = [0.4, 0.7, 0.2, 0.1]
 ```
 
-Pixels in each region are robustly clustered into two linear-RGB groups. A
-5-bit/channel histogram mode seeds background, its farthest real colour seeds
-foreground, then deterministic assignments/component medians refine them for
-at most 12 iterations. The smaller cluster is estimated foreground. Less than
-1% minority support, no second cluster, or residual linear-RGB RMS > 0.08 gives
-WARN/unmeasurable, never a false PASS. Gradients, multiple UI elements and
-antialias fringe can distort the estimate; define tight two-colour rectangles
-and confirm the reported swatches. Transparency/HDR are rejected.
+Contrast uses connected ink selected by encoded-sRGB difference from spatial
+background estimates. Each component uses a ring at radius three pixels with a
+one-pixel guard band; ring channel range must be <=6 encoded levels. Local maxima
+of colour distance select stroke cores; every colour with at least two supported
+core pixels is checked, and the worst component wins. Text plateau support also requires a one-pixel eroded ink interior and colour
+separation above the six-level ring tolerance; a repeated antialias edge block
+is insufficient. Mixed channel directions require a full 3x3 colour plateau.
+A core without a supported
+plateau gives a lower bound: above threshold can PASS, below it abstains. A diffuse
+ring or unsupported component abstains. The notes identify the worst component,
+colour support and local ring. UI outlines use 8x8 boundary tiles with at least
+two core pixels of one colour per segment; the worst supported segment wins.
+A supported plateau below target establishes FAIL even if another core is thin.
+A diffuse local background still abstains. Unsupported exact-colour peaks can use
+a supported top-distance cluster with a consistent colour direction; its least
+contrasting sample is a lower bound. Opposite channel directions cannot supply
+a thin-stroke lower bound because encoded interpolation can cross a luminance
+minimum.
+Declared-region contrast values can therefore change.
+Transparency/HDR are rejected.
 
 The ratio is `(Llighter+0.05)/(Ldarker+0.05)`. Normal text requires 4.5:1 AA or
 7:1 AAA; declared large text requires 3:1 AA or 4.5:1 AAA. Users confirm large
@@ -264,16 +276,17 @@ UI applicability under SC 1.4.11. A run with zero text candidates explicitly say
 
 Text contrast uses SC 1.4.3 AA 4.5:1 normal / 3:1 large or SC 1.4.6 AAA 7:1 normal /
 4.5:1 large. UI contrast targets SC 1.4.11's 3:1. Minimum measured glyph body height, capped by detected height, divided by
-`--px-per-pt` >=18 is the **large-text assumption**; default scale is 96/72 capture
-pixels per typographic point. Body bounds do not establish a font's point size,
+`--px-per-pt` >=18 is the **large-text assumption**, used only with explicit scale. Without `--px-per-pt`,
+scale is unknown and the normal-text threshold applies. Body bounds do not establish a font's point size,
 boldness, device pixel ratio or final display size. No 14pt-bold inference is made.
 Supply the actual capture/display scale and inspect the recorded assumption.
 
-Core's existing robust two-cluster component medians produce swatches and ratio.
-Weak support/diffuse colours, nonuniform borders, gradients and a high-contrast
-cluster concealing a weaker glyph produce UNMEASURABLE contrast. Independent
+Core's shared component-local estimator produces swatches and ratio. Nonuniform
+local backgrounds and unsupported cores produce UNMEASURABLE contrast. Independent
 text-quality evidence records the worst component's contrast, body-height proxy,
 sharpness and stroke widths; these are pixel checks, not human reading tests.
+Automatic size/sharpness/stroke proxy defects are WARN rather than a font-size or
+human-readability FAIL. Explicit declared pixel policies retain their FAIL checks.
 Missing-glyph shapes are WARN candidates; their absence is UNMEASURABLE coverage,
 never proof of complete fonts. CVD information loss remains a WARN candidate;
 pixels alone cannot establish whether colour conveys required information.
@@ -286,8 +299,8 @@ low-contrast or textured text and mistake aligned shapes for text. Entirely miss
 regions cannot be measured. It cannot establish alt text, ARIA, focus order,
 keyboard operation, complete WCAG conformance or certification.
 
-The permanent offline generated corpus covers bitmap-font text on UI, documents,
-web-like pages, HUD-like screens and synthetic photos, threshold neighbours at
+The permanent offline generated corpus covers bundled DejaVu anti-aliased multiline text on light,
+dark and saturated backgrounds, mixed ink, local backings, mixed outlines, threshold neighbours at
 3:1/4.5:1/7:1, size classes, gradients, low-contrast boundaries and colour-only
 status markers. Ground truth comes from rendering, with no manual labelling.
 Detection precision/recall use one-to-one IoU >=0.5 matching; verdict accuracy counts
@@ -295,6 +308,9 @@ misses as incorrect, and false PASS is measured on generated failing cases.
 Exact finite-corpus counts and bounds are printed by
 `cargo test -p saccade-a11y --test automatic -- --nocapture`.
 This gate does not qualify PaddleOCR runtime execution or real-world detection.
+Strict core support can leave thin anti-aliased glyphs unmeasurable even on flat
+backgrounds. The minimum-body size proxy can also retain the normal-text threshold
+for a visually large font; it does not establish typographic size.
 
 MCP mirrors this through `saccade_measure` operation `a11y_auto` with `input`, `out`,
 optional `config`, `level`, `px_per_pt`, `model_cache`, `junit`, under the same

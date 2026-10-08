@@ -310,13 +310,32 @@ pub(crate) fn contrast(image: &RgbImage, region: &Region) -> Result<Contrast> {
             _ => "contrast_aa_text",
         }
     });
-    let fit = saccade_core::contrast::estimate(image, region.rect)?;
+    let mut fit = if region.kind == "ui" {
+        saccade_core::contrast::estimate_boundary(image, region.rect)?
+    } else {
+        saccade_core::contrast::estimate(image, region.rect)?
+    };
+    if let Some(point) = fit
+        .lowest_point()
+        .filter(|p| p.ratio + 1e-12 < threshold)
+        .cloned()
+    {
+        fit.ratio = Some(point.ratio);
+        fit.foreground = Some(point.foreground);
+        fit.background = Some(point.background);
+        fit.lower_bound = false;
+        fit.note = format!(
+            "Measured failure in component {}, segment pixel {}, supported core {} pixels; lowest point ratio {}. Other cores can be uncertain; this FAIL is supported by a plateau, not a thin estimate.",
+            point.component, point.segment, point.support, point.ratio
+        );
+    }
     Ok(Contrast {
         name: region.name.clone(),
         kind: region.kind.clone(),
         rect: region.rect,
         verdict: match fit.ratio {
             Some(r) if r + 1e-12 >= threshold => "PASS",
+            Some(_) if fit.lower_bound => "WARN",
             Some(_) => "FAIL",
             None => "WARN",
         }

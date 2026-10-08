@@ -63,3 +63,8 @@ generation. Adding AVIF to the reported feature inventory reproduces the final
 reference byte for byte; the AVIF codec and full CI release-check were not run.
 `python3 scripts/gen-docs.py --check` and public hygiene pass. Actionlint is not
 installed, so its conditional gate is skipped.
+
+The component-local contrast estimator now abstains on the perspective-interpolated
+`capture-2` control: thin edge cores provide only a below-target lower bound. Its
+source pixels and thresholds are unchanged; this fixture no longer qualifies a
+positive legibility claim. The nearest-neighbour doubled control remains legible.

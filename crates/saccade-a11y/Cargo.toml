@@ -25,6 +25,7 @@ ai = ["saccade-core/ai"]
 ocr = ["saccade-core/ocr"]
 
 [dev-dependencies]
+ab_glyph = "0.2.32"
 tempfile = "3"
 
 [lints]

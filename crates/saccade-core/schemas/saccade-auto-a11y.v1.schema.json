@@ -111,7 +111,25 @@
                         "minimum": 0
                       },
                       "minItems": 4,
-                      "maxItems": 4
+                      "maxItems": 4,
+                      "prefixItems": [
+                        {
+                          "type": "integer",
+                          "minimum": 0
+                        },
+                        {
+                          "type": "integer",
+                          "minimum": 0
+                        },
+                        {
+                          "type": "integer",
+                          "minimum": 1
+                        },
+                        {
+                          "type": "integer",
+                          "minimum": 1
+                        }
+                      ]
                     },
                     "text_height_px": {
                       "type": "integer",
@@ -271,6 +289,95 @@
                 "glyph_verdict",
                 "reasons",
                 "success_criterion"
+              ],
+              "allOf": [
+                {
+                  "if": {
+                    "properties": {
+                      "verdict": {
+                        "const": "PASS"
+                      }
+                    },
+                    "required": [
+                      "verdict"
+                    ]
+                  },
+                  "then": {
+                    "properties": {
+                      "ratio": {
+                        "type": "number",
+                        "minimum": 1,
+                        "maximum": 21
+                      },
+                      "foreground": {
+                        "type": "array"
+                      },
+                      "background": {
+                        "type": "array"
+                      },
+                      "region": {
+                        "properties": {
+                          "overridden_by_declared": {
+                            "const": false
+                          }
+                        }
+                      }
+                    },
+                    "allOf": [
+                      {
+                        "if": {
+                          "properties": {
+                            "required_ratio": {
+                              "const": 3
+                            }
+                          }
+                        },
+                        "then": {
+                          "properties": {
+                            "ratio": {
+                              "type": "number",
+                              "minimum": 3
+                            }
+                          }
+                        }
+                      },
+                      {
+                        "if": {
+                          "properties": {
+                            "required_ratio": {
+                              "const": 4.5
+                            }
+                          }
+                        },
+                        "then": {
+                          "properties": {
+                            "ratio": {
+                              "type": "number",
+                              "minimum": 4.5
+                            }
+                          }
+                        }
+                      },
+                      {
+                        "if": {
+                          "properties": {
+                            "required_ratio": {
+                              "const": 7
+                            }
+                          }
+                        },
+                        "then": {
+                          "properties": {
+                            "ratio": {
+                              "type": "number",
+                              "minimum": 7
+                            }
+                          }
+                        }
+                      }
+                    ]
+                  }
+                }
               ]
             }
           },
@@ -531,6 +638,96 @@
           "text_detection",
           "automatic",
           "declared_and_colour_vision"
+        ],
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "verdict": {
+                  "const": "PASS"
+                }
+              },
+              "required": [
+                "verdict"
+              ]
+            },
+            "then": {
+              "anyOf": [
+                {
+                  "properties": {
+                    "automatic": {
+                      "minItems": 1,
+                      "contains": {
+                        "properties": {
+                          "verdict": {
+                            "const": "PASS"
+                          },
+                          "region": {
+                            "properties": {
+                              "kind": {
+                                "const": "text"
+                              }
+                            }
+                          }
+                        },
+                        "required": [
+                          "verdict",
+                          "region"
+                        ]
+                      }
+                    }
+                  }
+                },
+                {
+                  "properties": {
+                    "automatic": {
+                      "minItems": 1,
+                      "contains": {
+                        "properties": {
+                          "region": {
+                            "properties": {
+                              "kind": {
+                                "const": "text"
+                              }
+                            }
+                          }
+                        },
+                        "required": [
+                          "region"
+                        ]
+                      }
+                    },
+                    "declared_and_colour_vision": {
+                      "properties": {
+                        "contrast": {
+                          "minItems": 1,
+                          "contains": {
+                            "properties": {
+                              "kind": {
+                                "const": "text"
+                              },
+                              "verdict": {
+                                "const": "PASS"
+                              },
+                              "ratio": {
+                                "type": "number",
+                                "minimum": 1
+                              }
+                            },
+                            "required": [
+                              "kind",
+                              "verdict",
+                              "ratio"
+                            ]
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              ]
+            }
+          }
         ]
       }
     }
@@ -794,5 +991,33 @@
       ],
       "type": "object"
     }
-  }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "verdict": {
+            "const": "PASS"
+          }
+        },
+        "required": [
+          "verdict"
+        ]
+      },
+      "then": {
+        "properties": {
+          "images": {
+            "minItems": 1,
+            "items": {
+              "properties": {
+                "verdict": {
+                  "const": "PASS"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
 }
