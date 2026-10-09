@@ -13,9 +13,9 @@ build = "build.rs"
 exclude = ["report/**"]
 
 [dependencies]
-saccade-a11y = { path = "../saccade-a11y", version = "0.2.10", optional = true }
-saccade-geo = { path = "../saccade-geo", version = "0.2.10", optional = true }
-saccade-print = { path = "../saccade-print", version = "0.2.10", optional = true }
+saccade-a11y = { path = "../saccade-a11y", version = "0.3.0", optional = true }
+saccade-geo = { path = "../saccade-geo", version = "0.3.0", optional = true }
+saccade-print = { path = "../saccade-print", version = "0.3.0", optional = true }
 ureq = { version = "3", optional = true }
 url = { version = "2.5", optional = true }
 roxmltree = { version = "0.20", optional = true }
@@ -48,8 +48,8 @@ products = ["dep:ureq", "dep:url", "dep:roxmltree", "compression", "image/webp"]
 imgtune-avif = ["products", "image/avif", "image/avif-native"]
 documents = ["saccade-core/documents"]
 credentials = ["saccade-core/credentials"]
-# Dynamic CPU ONNX embeddings, no default dependency change
-embeddings = ["saccade-core/embeddings"]
+# Mirror core's implication so CLI cfgs and discovery expose semantic regions.
+embeddings = ["semantic-regions", "saccade-core/embeddings"]
 default = ["compression", "parallel", "graphics", "ai", "workbench", "mcp", "evaluation"]
 semantic-regions = ["saccade-core/semantic-regions"]
 compression = ["saccade-core/compression"]
@@ -63,8 +63,9 @@ mcp = []
 evaluation = ["ai", "saccade-core/evaluation"]
 prechecks = ["saccade-core/prechecks", "dep:saccade-a11y"]
 schema = ["saccade-core/schema"]
-# Optional external pinned Tesseract execution; no bundled runtime/models.
-ocr = ["saccade-core/ocr", "saccade-a11y?/ocr"]
+# Rust OCR shares the local-model runtime; enable its CLI provisioning too.
+# No bundled runtime/models.
+ocr = ["local-models", "saccade-core/ocr", "saccade-a11y?/ocr"]
 
 assist = ["ai", "saccade-core/assist"]
 

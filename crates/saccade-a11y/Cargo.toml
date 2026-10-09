@@ -1,6 +1,6 @@
 [package]
 name = "saccade-a11y"
-description = "Offline automatic image accessibility pre-checks for Saccade"
+description = "Offline accessibility pre-checks for images: contrast, legibility, missing glyphs and colour-vision loss"
 readme = "README.md"
 version.workspace = true
 edition.workspace = true

@@ -30,7 +30,8 @@ Targets: `x86_64-unknown-linux-gnu`, `aarch64-unknown-linux-gnu`,
 | Rust OCR (`text`, needs `models pull runtime` and `models pull ocr`) | no | yes | yes |
 | Embeddings, `similar`, `index` (needs your pinned export) | no | no | yes |
 | Geometry, dense motion, semantic regions | no | no | yes |
-| Local vision models, VLM and provider adapters, `assist`, media HTTP | no | no | yes |
+| Local vision models (enabled by OCR; needs provisioned models/runtime) | no | yes | yes |
+| VLM and provider adapters, `assist`, media HTTP | no | no | yes |
 
 A command not compiled into your bundle fails with `feature_unavailable` and names
 what to install; it never falls back to a different measurement.
