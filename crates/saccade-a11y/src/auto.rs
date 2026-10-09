@@ -12,7 +12,7 @@ pub const FILE: &str = "saccade-auto-a11y.v1.json";
 /// Deterministic edge/stroke grouping detector identity.
 pub const FALLBACK: &str = "edge-stroke-lines/2";
 /// Precision-first closed component detector identity.
-pub const UI: &str = "closed-edge-components/1";
+pub const UI: &str = "closed-edge-components/2";
 /// Bounded analysis: larger captures fail explicitly, without resampling away text.
 const MAX_PIXELS: u64 = 8 * 1024 * 1024;
 const MAX_COMPONENTS: usize = 8192;
@@ -442,7 +442,11 @@ impl Summary {
             Verdict::Fail
         } else if statuses.contains(&Status::Warn) {
             Verdict::Warn
-        } else if text_detected && statuses.contains(&Status::Pass) {
+        } else if text_detected
+            && (self.wcag_text_contrast.counts.pass > 0 || self.rendered_legibility.counts.pass > 0)
+        {
+            // A passing control cannot turn an unsupported OCR text candidate
+            // into a measured image PASS.
             Verdict::Pass
         } else {
             Verdict::Unmeasurable
@@ -690,9 +694,9 @@ pub fn fallback(image: &RgbImage) -> Result<Vec<Region>> {
     // Closed compact boundaries only: four supported sides; avoid labelling arbitrary texture as UI.
     for (i, (r, count)) in boxes.iter().enumerate() {
         if used[i]
-            || !(6..=128).contains(&r[2])
+            || !(6..=2048).contains(&r[2])
             || !(6..=128).contains(&r[3])
-            || r[2] > r[3] * 3
+            || r[2] > r[3] * 16
             || r[3] > r[2] * 3
             || *count > (r[2] * r[3] / 2) as usize
         {
@@ -740,6 +744,101 @@ fn fractional(r: [u32; 4], image: &RgbImage) -> [f64; 4] {
         f64::from(r[3]) / f64::from(image.height()),
     ]
 }
+// Sample the actual outside-facing boundary, independently of interior text.
+// Eight-pixel segments check every colour with two supporting pixels; unsupported
+// segments abstain. Four directional scans include rounded corner transitions.
+fn boundary_contrast(
+    image: &RgbImage,
+    declared: &a11y::Region,
+    r: [u32; 4],
+) -> Result<a11y::Contrast> {
+    let [x, y, w, h] = r;
+    let mut pairs = Vec::new();
+    let mut unknown = false;
+    for side in 0..4 {
+        let horizontal = side < 2;
+        let length = if horizontal { w } else { h };
+        let depth = (if horizontal { h } else { w }).min(24) / 2;
+        for start in (0..length).step_by(8) {
+            let mut colors = std::collections::BTreeMap::new();
+            let mut backgrounds = Vec::new();
+            for along in start..(start + 8).min(length) {
+                let at = |d| match side {
+                    0 => [x + along, y + d],
+                    1 => [x + along, y + h - 1 - d],
+                    2 => [x + d, y + along],
+                    _ => [x + w - 1 - d, y + along],
+                };
+                let [xx, yy] = at(0);
+                let bg = image.get_pixel(xx, yy).0;
+                let distance = |p: [u8; 3]| (0..3).map(|i| p[i].abs_diff(bg[i])).max().unwrap_or(0);
+                let inward: Vec<_> = (1..depth)
+                    .map(|d| {
+                        let [xx, yy] = at(d);
+                        image.get_pixel(xx, yy).0
+                    })
+                    .collect();
+                // The first supported constant run is the outside boundary,
+                // even when different ink occurs deeper inside a filled control.
+                let fg = inward
+                    .windows(2)
+                    .find(|pair| pair[0] == pair[1] && distance(pair[0]) >= 8)
+                    .map(|pair| pair[0])
+                    .or_else(|| inward.iter().copied().find(|p| distance(*p) >= 8))
+                    .unwrap_or(bg);
+                if distance(fg) >= 8 {
+                    *colors.entry(fg).or_insert(0usize) += 1;
+                    backgrounds.push(bg);
+                }
+            }
+            if colors.is_empty() {
+                continue;
+            }
+            let bg = backgrounds[0];
+            if backgrounds
+                .iter()
+                .any(|p| (0..3).any(|i| p[i].abs_diff(bg[i]) > 6))
+            {
+                unknown = true;
+                continue;
+            }
+            let mut supported = false;
+            for (fg, count) in colors {
+                if count < 2 {
+                    continue;
+                }
+                supported = true;
+                let ratio = saccade_core::contrast::contrast_ratio(
+                    saccade_core::color::rgb(fg),
+                    saccade_core::color::rgb(bg),
+                );
+                pairs.push((ratio, fg, bg));
+            }
+            unknown |= !supported;
+        }
+    }
+    let worst = pairs.into_iter().min_by(|a, b| a.0.total_cmp(&b.0));
+    let ratio = worst.map(|p| p.0).filter(|r| !unknown || *r < 3.);
+    Ok(a11y::Contrast {
+        name: declared.name.clone(),
+        kind: "ui".into(),
+        rect: declared.rect,
+        level: declared.level.clone(),
+        threshold: 3.,
+        ratio,
+        foreground: worst.map(|p| p.1),
+        background: worst.map(|p| p.2),
+        verdict: match ratio {
+            Some(r) if r >= 3. => "PASS",
+            Some(_) => "FAIL",
+            None => "WARN",
+        }
+        .into(),
+        note: format!(
+            "Outside-facing boundary: four scans including rounded corners, worst eight-pixel segment; minimum two same-colour pixels; adjacent background range <=6; unsupported segments={unknown}. Interior text excluded."
+        ),
+    })
+}
 /// Measure one candidate using the existing contrast and text-quality estimators.
 /// Region geometry is validated; declared overrides produce no automatic PASS/FAIL.
 pub fn measure(image: &RgbImage, region: Region, options: &Options) -> Result<Finding> {
@@ -752,6 +851,8 @@ pub fn measure(image: &RgbImage, region: Region, options: &Options) -> Result<Fi
     });
     let body_height = if region.kind == "text" && !region.overridden_by_declared {
         tq::line_height(&rgb, [0, 0, w, h])?
+            .zip(tq::x_height(&rgb, [0, 0, w, h])?)
+            .map(|(body, height)| body.min(height / 0.547))
     } else {
         None
     };
@@ -773,7 +874,11 @@ pub fn measure(image: &RgbImage, region: Region, options: &Options) -> Result<Fi
             "automatic region kind must be text/ui".into(),
         ));
     }
-    let c = a11y::contrast(image, &declared)?;
+    let c = if region.kind == "ui" && w > h * 3 {
+        boundary_contrast(image, &declared, region.rect_px)?
+    } else {
+        a11y::contrast(image, &declared)?
+    };
     let mut result = Finding {
         region,
         verdict: Verdict::Unmeasurable,
@@ -798,7 +903,7 @@ pub fn measure(image: &RgbImage, region: Region, options: &Options) -> Result<Fi
     };
     if options.scale_known && result.region.kind == "text" {
         result.reasons.push(format!(
-            "explicit scale: robust ascender body height {body_height:?} px, capped by detected height {} px; {} px-per-pt; large-text assumption {large}",
+            "explicit scale: conservative letter body capped by x-height / 0.547 size proxy {body_height:?} px, capped by detected height {} px; {} px-per-pt; large-text assumption {large}",
             result.region.text_height_px, options.px_per_pt
         ));
     }
@@ -825,9 +930,21 @@ pub fn measure(image: &RgbImage, region: Region, options: &Options) -> Result<Fi
             },
         )?;
         q.rect_px = result.region.rect_px;
+        let source_pass = c.ratio.is_some_and(|r| r + 1e-12 >= c.threshold);
         let v = match q.state {
             tq::State::Legible => Verdict::Pass,
-            tq::State::Illegible if q.reasons.iter().any(|r| r == "low_contrast") => Verdict::Fail,
+            tq::State::Illegible if q.reasons.iter().any(|r| r == "low_contrast") => {
+                if source_pass {
+                    q.reasons
+                        .push("thin rendering lowers displayed contrast".into());
+                    result
+                        .reasons
+                        .push("thin rendering lowers displayed contrast".into());
+                    Verdict::Warn
+                } else {
+                    Verdict::Fail
+                }
+            }
             // Automatic geometry/font proxies are heuristic, not a declared
             // minimum-size policy; keep them reviewable without a false FAIL.
             tq::State::Illegible => Verdict::Warn,
@@ -913,7 +1030,10 @@ impl Report {
             }
             for f in &im.automatic {
                 s.push_str(&format!("  WCAG source-colour {} {} {:?}: ratio {:?}, requires {}:1; {} confidence {}; rendered legibility {:?} (ratio {:?}); glyphs {}\n",f.verdict,f.region.kind,f.region.rect_px,f.ratio,f.required_ratio,f.region.detector,f.region.confidence,f.legibility_verdict,f.legibility.as_ref().and_then(|q| q.contrast),f.glyph_verdict));
-                for reason in f.reasons.iter().filter(|r| r.starts_with("displayed text")) {
+                for reason in f.reasons.iter().filter(|r| {
+                    r.starts_with("displayed text")
+                        || r.as_str() == "thin rendering lowers displayed contrast"
+                }) {
                     s.push_str(&format!("    {reason}\n"));
                 }
             }
@@ -1037,7 +1157,7 @@ pub fn run(input: &Path, out: &Path, options: &Options) -> Result<Report> {
         b"incomplete automatic pre-check\n",
     )
     .map_err(crate::io_err("writing automatic sentinel".into()))?;
-    let mut report=Report {schema:SCHEMA.into(),report_id:None,source_refs:vec![],verdict:Verdict::Unmeasurable,scope:"detected regions; detection completeness unknown".into(),disclaimer:saccade_core::safety::output::DISCLAIMER.into(),level:options.level,px_per_pt:options.px_per_pt,assumptions:vec!["Upper-quartile ascender-height letter body (small detached marks excluded), capped by detected height, / px-per-pt >=18 assumes large text; font size, bold and display scaling are not observed. Without explicit scale, scale unknown: normal-text threshold applied.".into(),"Automatic regions are candidates, not WCAG applicability or complete detection. Fallback misses short, tiny, rotated, joined or textured text; closed-edge UI candidates omit many icons/controls.".into(),"Glyph checks report WARN/NOT_VERIFIED, never font completeness. CVD information loss is a candidate warning with no semantic inference.".into()],images:vec![]};
+    let mut report=Report {schema:SCHEMA.into(),report_id:None,source_refs:vec![],verdict:Verdict::Unmeasurable,scope:"detected regions; detection completeness unknown".into(),disclaimer:saccade_core::safety::output::DISCLAIMER.into(),level:options.level,px_per_pt:options.px_per_pt,assumptions:vec!["Upper-quartile substantial letter-body height, capped by x-height / 0.547 (font-ratio assumption; small detached marks excluded) and detected height, / px-per-pt >=18 assumes large text; font size, bold and display scaling are not observed. Without explicit scale, scale unknown: normal-text threshold applied.".into(),"Thin source-colour bounds assume common ink across thin bodies; distinct inks without a supported plateau cannot be verified.".into(),"Automatic regions are candidates, not WCAG applicability or complete detection. Fallback misses short, tiny, rotated, joined or textured text; closed-edge UI candidates omit many icons/controls.".into(),"Glyph checks report WARN/NOT_VERIFIED, never font completeness. CVD information loss is a candidate warning with no semantic inference.".into()],images:vec![]};
     for im in declared.images {
         let image = saccade_core::safety::opaque(&out.join(&im.original))?;
         let mut regions = fallback(&image)?;
@@ -1085,15 +1205,14 @@ pub fn run(input: &Path, out: &Path, options: &Options) -> Result<Report> {
                 }
             }
         }
+        regions.sort_by_key(|r| (r.rect_px[1], r.rect_px[0]));
         let text_boxes: Vec<_> = regions
             .iter()
             .filter(|r| r.kind == "text")
             .map(|r| r.rect_px)
             .collect();
-        // Text inside a control could conceal a failing boundary in a two-colour fit.
-        regions.retain(|r| r.kind != "ui" || !text_boxes.iter().any(|b| overlap(*b, r.rect_px)));
         let text_count = text_boxes.len();
-        let detectors=vec![status,DetectorStatus {detector:FALLBACK.into(),state:"available".into(),reason:"three or more aligned similar-height edge/stroke components; confidence 0.7 is a heuristic score".into()},DetectorStatus {detector:UI.into(),state:"available".into(),reason:"compact boundaries with >=70% support on each of four sides; confidence 0.75 is heuristic".into()}];
+        let detectors=vec![status,DetectorStatus {detector:FALLBACK.into(),state:"available".into(),reason:"three or more aligned similar-height edge/stroke components; confidence 0.7 is a heuristic score".into()},DetectorStatus {detector:UI.into(),state:"available".into(),reason:"closed outlines/filled controls, width <=2048px, height <=128px, aspect <=16, >=70% edge support on each of four sides; confidence 0.75 is heuristic".into()}];
         let text_detection = if text_count == 0 {
             format!(
                 "no text detected by {FALLBACK} and PP-OCRv5-mobile-det/pinned (see availability)"

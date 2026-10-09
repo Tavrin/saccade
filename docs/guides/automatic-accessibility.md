@@ -3,9 +3,10 @@
 Use a `prechecks` build for offline image accessibility candidates. These are
 pixel pre-checks, never complete detection, certification or DOM accessibility.
 
-A completed blank capture reports UNMEASURABLE and explicitly no text detected:
+A completed blank capture reports UNMEASURABLE and explicitly no text detected,
+with insufficient-evidence exit code 4:
 
-```sh case=known-good requires=prechecks exit=0 says="no text detected"
+```sh case=known-good requires=prechecks exit=4 says="no text detected"
 saccade a11y auto samples/a11y/blank.png --out blank-report
 ```
 
@@ -23,7 +24,7 @@ saccade a11y auto absent.png --out absent-report
 
 An absent model cache remains explicitly unavailable; the free fallback runs:
 
-```sh case=unavailable-dependency requires=prechecks exit=0 says="unavailable"
+```sh case=unavailable-dependency requires=prechecks exit=4 says="unavailable"
 saccade a11y auto samples/a11y/blank.png --model-cache absent-cache --out fallback-report
 ```
 
