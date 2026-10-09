@@ -450,7 +450,7 @@ pub(crate) fn catalogue() -> Value {
         "What preferences were recorded against a hash-bound blind trial?",
         "only public galleries go to judges; preferences grant no baseline or performance approval",
     );
-    let mut features: Vec<_> = saccade_core::COMPILED_FEATURES
+    let mut features: Vec<_> = crate::COMPILED_FEATURES
         .iter()
         .map(|s| s.to_string())
         .collect();

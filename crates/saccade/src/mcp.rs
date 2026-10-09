@@ -2349,7 +2349,7 @@ impl Server {
                     "Provider review requires explicit startup authorization, a budget and allowed provenance."
                 ]);
                 value["counts"] = json!({"tools":tool_schemas().as_array().map_or(0,Vec::len)});
-                value["data"] = json!({"features":saccade_core::COMPILED_FEATURES,"tools":tool_schemas().as_array().map(|a|a.iter().map(|t|t["name"].clone()).collect::<Vec<_>>()),"contracts":["saccade-result.v2","saccade-evidence.v1","saccade-report.v1"]});
+                value["data"] = json!({"features":crate::COMPILED_FEATURES,"tools":tool_schemas().as_array().map(|a|a.iter().map(|t|t["name"].clone()).collect::<Vec<_>>()),"contracts":["saccade-result.v2","saccade-evidence.v1","saccade-report.v1"]});
                 return Ok(ToolOutput {
                     structured: value,
                     text: "Compiled tools and provider authorization policy.".into(),

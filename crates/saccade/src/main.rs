@@ -15,6 +15,67 @@ use saccade_core::config::RunConfig;
 use saccade_core::report::{Labels, Metric, Mode, Report, Status};
 use saccade_core::view::{ViewOptions, build_view, is_safe_name};
 
+// CLI features must not inherit Cargo feature unification from other consumers
+// of core, such as the accessibility extension or Python bindings.
+const COMPILED_FEATURES: &[&str] = &[
+    #[cfg(feature = "ai")]
+    "ai",
+    #[cfg(feature = "assist")]
+    "assist",
+    #[cfg(feature = "compression")]
+    "compression",
+    #[cfg(feature = "credentials")]
+    "credentials",
+    #[cfg(feature = "dense-motion")]
+    "dense-motion",
+    #[cfg(feature = "documents")]
+    "documents",
+    #[cfg(feature = "embeddings")]
+    "embeddings",
+    #[cfg(feature = "evaluation")]
+    "evaluation",
+    #[cfg(feature = "geo")]
+    "geo",
+    #[cfg(feature = "geometry")]
+    "geometry",
+    #[cfg(feature = "graphics")]
+    "graphics",
+    #[cfg(feature = "imgtune-avif")]
+    "imgtune-avif",
+    #[cfg(feature = "local-models")]
+    "local-models",
+    #[cfg(feature = "local-vlm")]
+    "local-vlm",
+    #[cfg(feature = "mcp")]
+    "mcp",
+    #[cfg(feature = "media-http")]
+    "media-http",
+    #[cfg(feature = "ocr")]
+    "ocr",
+    #[cfg(feature = "ocr-provider")]
+    "ocr-provider",
+    #[cfg(feature = "optical-code")]
+    "optical-code",
+    #[cfg(feature = "parallel")]
+    "parallel",
+    #[cfg(feature = "prechecks")]
+    "prechecks",
+    #[cfg(feature = "print")]
+    "print",
+    #[cfg(feature = "products")]
+    "products",
+    #[cfg(feature = "schema")]
+    "schema",
+    #[cfg(feature = "semantic-regions")]
+    "semantic-regions",
+    #[cfg(feature = "text-quality")]
+    "text-quality",
+    #[cfg(feature = "vision-providers")]
+    "vision-providers",
+    #[cfg(feature = "workbench")]
+    "workbench",
+];
+
 // wave7
 mod vision_checks;
 mod wave7_cmd;
@@ -2205,7 +2266,7 @@ fn dispatch(command: Command, record_absolute_paths: bool) -> Result<u8, CliErro
 }
 
 fn doctor(json: bool) -> Result<u8, CliError> {
-    let mut features = saccade_core::COMPILED_FEATURES.to_vec();
+    let mut features = COMPILED_FEATURES.to_vec();
     if cfg!(feature = "geo") {
         features.push("geo");
     }
@@ -2914,15 +2975,7 @@ fn required_feature(operation: &str) -> Option<&'static str> {
 }
 
 fn feature_enabled(feature: &str) -> bool {
-    if feature == "geo" {
-        cfg!(feature = "geo")
-    } else if feature == "mcp" {
-        cfg!(feature = "mcp")
-    } else if feature == "products" {
-        cfg!(feature = "products")
-    } else {
-        saccade_core::COMPILED_FEATURES.contains(&feature)
-    }
+    COMPILED_FEATURES.contains(&feature)
 }
 
 fn unavailable_feature(operation: &str) -> Option<&'static str> {
@@ -2972,7 +3025,7 @@ pub(crate) fn capabilities(json: bool) -> Result<u8, CliError> {
     }
     let mut names = Vec::new();
     operations(&Cli::command(), "", &mut names);
-    let mut features = saccade_core::COMPILED_FEATURES.to_vec();
+    let mut features = COMPILED_FEATURES.to_vec();
     if cfg!(feature = "geo") {
         features.push("geo");
     }
