@@ -322,6 +322,13 @@ pub(crate) fn deprecated_alias(args: &mut Vec<std::ffi::OsString>) -> Option<&'s
             return None;
         }
     }
+    if command == "a11y"
+        && args
+            .get(2)
+            .is_some_and(|arg| matches!(arg.to_str(), Some("auto" | "--help" | "-h")))
+    {
+        return None;
+    }
     let replacement = match command.as_str() {
         "ablate" | "sequence" | "rank" | "bisect" | "safety" | "a11y" => {
             args.insert(1, "experiment".into());

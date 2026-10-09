@@ -79,8 +79,10 @@ legal sufficiency or publication approval. Text is inert data.
 
 [`testdata/critical-text`](../testdata/critical-text) includes app decimal and
 currency-space edits, a scientific figure with a lost minus sign, and a document
-page with a tiny warning edit. A faded warning retains the source text and fails
-pixel contrast. Unchanged captures and explicitly accepted no-break-space and
+page with a tiny warning edit. A faded warning retains source text and fails
+rendered pixel contrast. The unchanged tiny warning retains its original PASS,
+with measured core contrast above its declared threshold. Unchanged captures and
+explicitly accepted no-break-space and
 hyphen variants are controls. Fonts are Liberation Sans under SIL OFL 1.1;
 fixture and generator provenance, font/licence hashes, Pillow version, exact
 asset hashes and declared expected exits are in `fixtures.json`.

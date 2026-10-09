@@ -8,7 +8,8 @@ use std::path::Path;
 pub const DISCLAIMER: &str = "PRE-CHECK only. Not a certification; does not replace platform-holder required testing (e.g. Harding FPA) or formal compliance processes. No compliance claims. PASS means no trigger detected in this capture under these checks; review coverage and limitations below.";
 const SENTINEL: &str = ".saccade-precheck";
 
-pub(crate) fn prepare(out: &Path, inputs: &[&Path], marker: &str) -> Result<()> {
+/// Prepare guarded artifacts, preserving all supplied inputs.
+pub fn prepare(out: &Path, inputs: &[&Path], marker: &str) -> Result<()> {
     crate::run::guard_output_dir(out, inputs, &[marker, SENTINEL])?;
     for leaf in [marker, "index.html", "report.txt", "images", SENTINEL] {
         let artifact = crate::run::normalise_path(&out.join(leaf));
@@ -44,7 +45,8 @@ pub(crate) fn prepare(out: &Path, inputs: &[&Path], marker: &str) -> Result<()> 
     Ok(())
 }
 
-pub(crate) fn image(out: &Path, leaf: &str, image: &image::RgbImage) -> Result<String> {
+/// Encode one RGB artifact beneath the prepared image directory.
+pub fn image(out: &Path, leaf: &str, image: &image::RgbImage) -> Result<String> {
     let relative = format!("images/{leaf}.png");
     let path = out.join(&relative);
     image
@@ -63,7 +65,8 @@ pub(crate) fn heatmap(mask: &[bool], width: u32, height: u32) -> image::RgbImage
     })
 }
 
-pub(crate) fn finish<T: Serialize>(
+/// Finish guarded JSON/text/HTML pre-check artifacts.
+pub fn finish<T: Serialize>(
     out: &Path,
     marker: &str,
     report: &T,

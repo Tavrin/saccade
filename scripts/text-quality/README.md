@@ -63,3 +63,8 @@ generation. Adding AVIF to the reported feature inventory reproduces the final
 reference byte for byte; the AVIF codec and full CI release-check were not run.
 `python3 scripts/gen-docs.py --check` and public hygiene pass. Actionlint is not
 installed, so its conditional gate is skipped.
+
+The perspective-interpolated `capture-2` control retains its original legible
+expectation. Rendered contrast measures displayed stroke cores independently
+of the source-colour lower-bound policy. Source pixels and thresholds are unchanged.
+The nearest-neighbour doubled control remains legible.

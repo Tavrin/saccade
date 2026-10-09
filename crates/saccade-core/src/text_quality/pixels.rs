@@ -90,10 +90,28 @@ fn field(
     } else {
         span * 0.5
     };
+    let rgb_bg = if text_sampling {
+        let mut colors = std::collections::BTreeMap::new();
+        for yy in r[1]..r[1] + r[3] {
+            for xx in r[0]..r[0] + r[2] {
+                let p = image.get_pixel(xx, yy);
+                *colors.entry([p[0], p[1], p[2]]).or_insert(0usize) += 1;
+            }
+        }
+        colors.into_iter().max_by_key(|(_, n)| *n).map(|(p, _)| p)
+    } else {
+        None
+    };
     let bits: Vec<_> = values
         .iter()
         .zip(&selected)
-        .map(|(v, s)| *s && (v - bg).abs() >= cutoff)
+        .enumerate()
+        .map(|(i, (v, s))| {
+            let p = image.get_pixel(r[0] + i as u32 % r[2], r[1] + i as u32 / r[2]);
+            *s && rgb_bg.map_or((v - bg).abs() >= cutoff, |b| {
+                (0..3).any(|c| p[c].abs_diff(b[c]) >= 3)
+            })
+        })
         .collect();
     let fg: Vec<_> = values
         .iter()
@@ -339,6 +357,29 @@ fn stroke(f: &Field, c: &Component) -> f64 {
     }
     quantile(runs, 0.25)
 }
+/// Robust letter-body height for explicit display-scale classification.
+/// Excludes small detached marks and uses the upper quartile of ascender-height bodies;
+/// unlike the minimum legibility metric, punctuation cannot set the line size.
+pub fn line_height(image: &RgbaImage, r: [u32; 4]) -> Result<Option<f64>> {
+    let Some(f) = field(image, r, None, true)? else {
+        return Ok(None);
+    };
+    let Some(cs) = components(&f) else {
+        return Ok(None);
+    };
+    let max_height = cs
+        .iter()
+        .filter(|c| c.indices.len() >= 3)
+        .map(|c| c.r[3])
+        .max()
+        .unwrap_or(0);
+    let heights: Vec<_> = cs
+        .iter()
+        .filter(|c| c.indices.len() >= 3 && c.r[3] >= 3 && c.r[3] * 5 >= max_height * 4)
+        .map(|c| c.r[3] as f64)
+        .collect();
+    Ok((!heights.is_empty()).then(|| quantile(heights, 0.75)))
+}
 /// Measure one region. No glyphs, clipping, mixed/transparent backgrounds abstain.
 pub fn legibility(
     image: &RgbaImage,
@@ -400,13 +441,21 @@ pub fn legibility(
             if f.background > 0.5 { 0.25 } else { 0.75 },
         )
     };
-    let contrast = cs
-        .iter()
-        .map(|c| {
-            let fg = component_foreground(c);
-            (f.background.max(fg) + 0.05) / (f.background.min(fg) + 0.05)
-        })
-        .fold(f64::INFINITY, f64::min);
+    let opaque = image::RgbImage::from_fn(image.width(), image.height(), |x, y| {
+        let p = image.get_pixel(x, y);
+        image::Rgb([p[0], p[1], p[2]])
+    });
+    let estimate = crate::contrast::estimate_rendered(
+        &opaque,
+        [
+            r[0] as f64 / image.width() as f64,
+            r[1] as f64 / image.height() as f64,
+            r[2] as f64 / image.width() as f64,
+            r[3] as f64 / image.height() as f64,
+        ],
+    )?;
+    let contrast = estimate.ratio;
+    let uncertain_contrast = contrast.is_none();
     let height = cs
         .iter()
         .map(|c| c.r[3] as f64)
@@ -435,12 +484,11 @@ pub fn legibility(
         .iter()
         .map(|c| stroke(&f, c))
         .fold(f64::INFINITY, f64::min);
-    result.contrast = Some(contrast);
+    result.contrast = contrast;
     result.x_height_px = Some(height);
     result.sharpness = Some(sharpness);
     result.stroke_px = Some(strokes);
     for (value, min, reason) in [
-        (contrast, policy.minimum_contrast, "low_contrast"),
         (height, policy.minimum_x_height_px, "too_small"),
         (sharpness, policy.minimum_sharpness, "blurred"),
         (strokes, policy.minimum_stroke_px, "undersampled_strokes"),
@@ -451,6 +499,20 @@ pub fn legibility(
     }
     if detect(&f, r).is_some_and(|v| !v.is_empty()) {
         result.reasons.push("missing_glyph_candidate".into());
+    }
+    if contrast.is_some_and(|c| c < policy.minimum_contrast) {
+        result.reasons.push("low_contrast".into());
+    }
+    // Unknown contrast cannot hide independently measured size/blur/stroke
+    // failures. Thin displayed cores can establish rendered-contrast FAIL.
+    if uncertain_contrast {
+        result.state = if result.reasons.is_empty() {
+            State::InsufficientEvidence
+        } else {
+            State::Illegible
+        };
+        result.reasons.push(estimate.note);
+        return Ok(result);
     }
     result.state = if result.reasons.is_empty() {
         result.reasons.push("pixel thresholds satisfied; human readability and glyph completeness are not certified".into());

@@ -22,7 +22,7 @@ pub(crate) fn io_err(context: String) -> impl FnOnce(std::io::Error) -> Error {
 
 /// Image files found under a root, plus entries that could not be listed.
 #[derive(Debug, Default)]
-pub(crate) struct Collected {
+pub struct Collected {
     /// `/`-separated relative name to file path.
     pub files: BTreeMap<String, PathBuf>,
     /// `/`-separated relative name to the reason it cannot be used.
@@ -45,7 +45,7 @@ fn relative_name(root: &Path, path: &Path) -> Option<String> {
 /// Recursively lists image files under `root`. Symbolic links are not
 /// followed: a link becomes a problem entry. Walk errors that name a path
 /// below `root` become problem entries too; only an unusable `root` is `Err`.
-pub(crate) fn collect_images(root: &Path) -> Result<Collected> {
+pub fn collect_images(root: &Path) -> Result<Collected> {
     if !root.is_dir() {
         let source = if root.exists() {
             std::io::Error::new(

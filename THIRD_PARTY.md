@@ -962,3 +962,19 @@ Rust library workflow extraction reuses the existing `serde_ignored` 0.1.14
 (MIT OR Apache-2.0) and `rustix` 1.1.5 (Apache-2.0 WITH LLVM-exception OR
 Apache-2.0 OR MIT) dependencies in core, and `jsonschema` 0.30.0 (MIT) for
 transferred history tests. No additional package version is introduced.
+## Accessibility extension
+
+`saccade-a11y` adds no new third-party dependency versions: it reuses workspace
+`image`, `serde`, `serde_json`, `toml` (MIT OR Apache-2.0) and `globset` (MIT OR
+Unlicense), already recorded above. Generated evaluation glyphs/scenes are original
+code-drawn bitmap fixtures under the project licence. Optional OCR reuses the
+existing pinned PaddleOCR detection model and ONNX CPU runtime receipts; no new
+model, runtime or recognition dependency is introduced.
+
+## Automatic accessibility test font and rasterizer
+
+`crates/saccade-a11y/tests/fonts/DejaVuSans.ttf` is unmodified DejaVu Sans,
+Bitstream Vera permissive font licence; DejaVu changes are public domain.
+Full notice: `tests/fonts/LICENSE.txt` in the extension. Used only to generate
+anti-aliased offline test scenes. `ab_glyph` 0.2.32 is Apache-2.0 and supplies
+the test rasterizer (no font downloads).

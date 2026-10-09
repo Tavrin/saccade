@@ -143,10 +143,6 @@ name = "v1_buffers"
 required-features = ["graphics"]
 
 [[test]]
-name = "prechecks"
-required-features = ["prechecks"]
-
-[[test]]
 name = "schemas"
 required-features = ["schema"]
 

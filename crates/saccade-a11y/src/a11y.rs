@@ -1,9 +1,11 @@
 //! Accessibility pre-check: Machado CVD, CIEDE2000 information loss and
 //! user-declared WCAG contrast regions. No certification or compliance claim.
 
-use crate::safety::{color, opaque, output, thresholds};
+use crate::thresholds;
 use crate::{Error, Result};
 use image::RgbImage;
+use saccade_core::color;
+use saccade_core::safety::{opaque, output};
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, VecDeque};
 #[cfg(feature = "ai")]
@@ -168,7 +170,7 @@ pub struct A11yReport {
     pub model: String,
     /// Pixel block scale of neighbouring-colour comparisons.
     pub scale: u32,
-    /// Same single numeric criterion table as safety.
+    /// Shared photosensitivity criteria plus extension accessibility policy.
     pub thresholds: Vec<thresholds::Threshold>,
     /// Approximation and uncovered-region notes.
     pub warnings: Vec<String>,
@@ -240,7 +242,7 @@ fn configuration(path: Option<&Path>) -> Result<(Settings, Vec<Region>)> {
         return Ok((Settings::default(), Vec::new()));
     };
     let text =
-        std::fs::read_to_string(path).map_err(crate::run::io_err("reading a11y config".into()))?;
+        std::fs::read_to_string(path).map_err(crate::io_err("reading a11y config".into()))?;
     // Other saccade config tables are preserved/ignored, not reinterpreted.
     let doc: toml::Value =
         toml::from_str(&text).map_err(|e| Error::Config(format!("a11y TOML: {e}")))?;
@@ -283,7 +285,7 @@ fn configuration(path: Option<&Path>) -> Result<(Settings, Vec<Region>)> {
                 return Err(Error::Config("a11y regions require a name, kind text/ui, AA/AAA, and a nonempty fractional rect wholly inside the image".into()));
             }
             if let Some(glob) = &r.glob {
-                crate::config::compile_glob(glob)?;
+                crate::compile_glob(glob)?;
             }
             if regions
                 .iter()
@@ -297,15 +299,7 @@ fn configuration(path: Option<&Path>) -> Result<(Settings, Vec<Region>)> {
     Ok((settings, regions))
 }
 
-/// WCAG SC 1.4.3/1.4.6 ratio of two linear RGB colours.
-pub fn contrast_ratio(a: [f64; 3], b: [f64; 3]) -> f64 {
-    let (a, b) = (color::luminance(a), color::luminance(b));
-    (a.max(b) + 0.05) / (a.min(b) + 0.05)
-}
-
-fn contrast(image: &RgbImage, region: &Region) -> Result<Contrast> {
-    let [x, y, w, h] = crate::regions::resolve_rect(region.rect, image.width(), image.height())
-        .ok_or_else(|| Error::Config("contrast region resolves to zero pixels".into()))?;
+pub(crate) fn contrast(image: &RgbImage, region: &Region) -> Result<Contrast> {
     let threshold = thresholds::value(if region.kind == "ui" {
         "contrast_ui"
     } else {
@@ -316,77 +310,43 @@ fn contrast(image: &RgbImage, region: &Region) -> Result<Contrast> {
             _ => "contrast_aa_text",
         }
     });
-    let mut result = Contrast { name: region.name.clone(),kind: region.kind.clone(),rect: region.rect,verdict: "WARN".into(),foreground: None,background: None,ratio: None,threshold,level: region.level.clone(),note: "Deterministic two-cluster fit with component medians; minority is estimated foreground. No OCR, font-size inference, or automatic WCAG applicability judgement.".into() };
-    let pixels: Vec<_> = (y..y + h)
-        .flat_map(|y| (x..x + w).map(move |x| color::rgb(image.get_pixel(x, y).0)))
-        .collect();
-    if pixels.len() < 2 {
-        result.note.push_str(" Insufficient pixels.");
-        return Ok(result);
-    }
-    let dist =
-        |a: [f64; 3], b: [f64; 3]| a.iter().zip(b).map(|(a, b)| (a - b).powi(2)).sum::<f64>();
-    // Mode in 5-bit/channel histogram seeds background; farthest real pixel
-    // seeds foreground. Medians limit antialias/outlier influence.
-    let mut hist: BTreeMap<[u8; 3], (usize, [f64; 3])> = BTreeMap::new();
-    for &p in &pixels {
-        let bucket = color::bytes(p).map(|v| v / 8);
-        let e = hist.entry(bucket).or_insert((0, p));
-        e.0 += 1;
-    }
-    let seed = hist.values().max_by_key(|v| v.0).map_or(pixels[0], |v| v.1);
-    let far = pixels
-        .iter()
-        .max_by(|a, b| dist(**a, seed).total_cmp(&dist(**b, seed)))
-        .copied()
-        .unwrap_or(seed);
-    let mut centres = [seed, far];
-    let mut clusters = [Vec::new(), Vec::new()];
-    for _ in 0..12 {
-        clusters.iter_mut().for_each(Vec::clear);
-        for &p in &pixels {
-            let i = usize::from(dist(p, centres[1]) < dist(p, centres[0]));
-            clusters[i].push(p);
-        }
-        if clusters.iter().any(Vec::is_empty) {
-            result.note.push_str(" No two supported dominant colours.");
-            return Ok(result);
-        }
-        let next = std::array::from_fn(|i| {
-            std::array::from_fn(|c| {
-                let mut channel: Vec<_> = clusters[i].iter().map(|p| p[c]).collect();
-                channel.sort_by(f64::total_cmp);
-                channel[channel.len() / 2]
-            })
-        });
-        if next == centres {
-            break;
-        }
-        centres = next;
-    }
-    let minority = usize::from(clusters[1].len() < clusters[0].len());
-    let coverage = clusters[minority].len() as f64 / pixels.len() as f64;
-    let residual = clusters
-        .iter()
-        .enumerate()
-        .map(|(i, ps)| ps.iter().map(|&p| dist(p, centres[i])).sum::<f64>())
-        .sum::<f64>()
-        / pixels.len() as f64;
-    if coverage < 0.01 || residual.sqrt() > 0.08 {
-        result.note.push_str(" Weak minority support (<1%) or diffuse colours (linear RGB RMS >0.08); confirm a tighter two-colour region.");
-        return Ok(result);
-    }
-    let ratio = contrast_ratio(centres[0], centres[1]);
-    result.ratio = Some(ratio);
-    result.foreground = Some(color::bytes(centres[minority]));
-    result.background = Some(color::bytes(centres[1 - minority]));
-    result.verdict = if ratio + 1e-12 >= threshold {
-        "PASS"
+    let mut fit = if region.kind == "ui" {
+        saccade_core::contrast::estimate_boundary(image, region.rect)?
     } else {
-        "FAIL"
+        saccade_core::contrast::estimate(image, region.rect)?
+    };
+    if let Some(point) = fit
+        .lowest_point()
+        .filter(|p| p.ratio + 1e-12 < threshold)
+        .cloned()
+    {
+        fit.ratio = Some(point.ratio);
+        fit.foreground = Some(point.foreground);
+        fit.background = Some(point.background);
+        fit.lower_bound = false;
+        fit.note = format!(
+            "Measured failure in component {}, segment pixel {}, supported core {} pixels; lowest point ratio {}. Other cores can be uncertain; this FAIL is supported by a plateau, not a thin estimate.",
+            point.component, point.segment, point.support, point.ratio
+        );
     }
-    .into();
-    Ok(result)
+    Ok(Contrast {
+        name: region.name.clone(),
+        kind: region.kind.clone(),
+        rect: region.rect,
+        verdict: match fit.ratio {
+            Some(r) if r + 1e-12 >= threshold => "PASS",
+            Some(_) if fit.lower_bound => "WARN",
+            Some(_) => "FAIL",
+            None => "WARN",
+        }
+        .into(),
+        foreground: fit.foreground,
+        background: fit.background,
+        ratio: fit.ratio,
+        threshold,
+        level: region.level.clone(),
+        note: fit.note,
+    })
 }
 
 fn information_loss(image: &RgbImage, scale: u32, kind: usize) -> (Vec<Finding>, RgbImage) {
@@ -494,14 +454,14 @@ fn information_loss(image: &RgbImage, scale: u32, kind: usize) -> (Vec<Finding>,
 
 #[cfg(feature = "ai")]
 fn proposals(image: &RgbImage, keys_dir: Option<PathBuf>) -> Result<Vec<Proposal>> {
-    use crate::judge_provider::{AskRequest, Backend, Keys, LiveBackend, Prompt, Retry};
+    use saccade_core::judge_provider::{AskRequest, Backend, Keys, LiveBackend, Prompt, Retry};
     // Parse the repo's panel, so fallback models and key policy cannot drift
     // into an independently maintained a11y provider implementation.
-    let panel = crate::judge::Panel::parse(include_str!("../examples/panel.toml"))?;
+    let panel = saccade_core::judge::Panel::parse(include_str!("panel.toml"))?;
     let spec = panel
         .judges
         .iter()
-        .find(|s| s.provider == crate::judge::Provider::Gemini && s.vision)
+        .find(|s| s.provider == saccade_core::judge::Provider::Gemini && s.vision)
         .ok_or_else(|| Error::Config("judge panel has no Gemini vision chain".into()))?;
     let keys = Keys::new(keys_dir);
     keys.for_spec(spec).map_err(Error::Config)?;
@@ -518,7 +478,7 @@ fn proposals(image: &RgbImage, keys_dir: Option<PathBuf>) -> Result<Vec<Proposal
         for col in 0..4 {
             let rect = [f64::from(col) / 4.0, f64::from(row) / 4.0, 0.25, 0.25];
             let Some([x, y, w, h]) =
-                crate::regions::resolve_rect(rect, image.width(), image.height())
+                saccade_core::regions::resolve_rect(rect, image.width(), image.height())
             else {
                 continue;
             };
@@ -558,10 +518,10 @@ fn proposals(image: &RgbImage, keys_dir: Option<PathBuf>) -> Result<Vec<Proposal
 
 /// Analyze an image or recursively collected directory and write artifacts.
 pub fn run(input: &Path, out: &Path, options: &Options) -> Result<A11yReport> {
-    let root = crate::paths::canonicalize(input)
-        .map_err(crate::run::io_err("opening a11y input".into()))?;
+    let root = saccade_core::paths::canonicalize(input)
+        .map_err(crate::io_err("opening a11y input".into()))?;
     let files = if root.is_dir() {
-        let collected = crate::run::collect_images(&root)?;
+        let collected = saccade_core::run::collect_images(&root)?;
         if !collected.problems.is_empty() {
             return Err(Error::Config(format!(
                 "unreadable/symlink a11y inputs: {:?}",
@@ -632,7 +592,7 @@ pub fn run(input: &Path, out: &Path, options: &Options) -> Result<A11yReport> {
         for (i, r) in regions.iter().enumerate() {
             if r.glob
                 .as_ref()
-                .map(|g| crate::config::compile_glob(g).map(|m| m.is_match(name)))
+                .map(|g| crate::compile_glob(g).map(|m| m.is_match(name)))
                 .transpose()?
                 .unwrap_or(true)
             {

@@ -12,6 +12,11 @@ Exit 0 for compare/identity means no image regression; inspect `performance` for
 Inspection, review, rank and ablation completion grant no acceptance authority.
 Exit 2 means the operation cannot run. Demo intentionally exits 1.
 
+Actual generation binary (reference header above describes all features):
+
+Generation: `python3 scripts/gen-docs.py --allow-missing-imgtune-avif --preserve-all-features-header`.
+Compiled features: `ai`, `assist`, `compression`, `credentials`, `dense-motion`, `documents`, `embeddings`, `evaluation`, `geo`, `geometry`, `graphics`, `local-models`, `local-vlm`, `mcp`, `media-http`, `ocr`, `ocr-provider`, `optical-code`, `parallel`, `prechecks`, `print`, `products`, `schema`, `semantic-regions`, `text-quality`, `vision-providers`, `workbench`.
+
 ## saccade
 
 ```text
@@ -23,6 +28,7 @@ Commands:
   compare             Compare a directory of captures against a directory of baselines
   prove               Check whether image identity or performance evidence proves a claim
   review              Preview a review plan or handle a local closed decision request
+  a11y                Automatic offline image accessibility pre-checks (requires prechecks)
   batch               Bounded folder or manifest intake with resumable rows and review summaries
   assist              Experimental advisory AI with an egress preview before dispatch
   replay              Record or re-execute an offline, content-bound evidence pack
@@ -121,6 +127,74 @@ Exit codes (a command that cannot produce a measurement never exits 0):
   3  strict producer check refused: an undeclared difference (--require-valid-arms)
   4  strict producer check refused: a required key is missing (--require-valid-arms)
 Units: --threshold on FLIP scores is a 0-1 score (lower = more alike); hash thresholds count bits.
+```
+
+## saccade a11y
+
+```text
+Automatic offline image accessibility pre-checks (requires prechecks)
+
+Usage: saccade a11y [OPTIONS] <COMMAND>
+
+Commands:
+  auto  Detect text/UI candidates and check contrast, legibility, glyphs and colour loss offline
+
+Options:
+      --require-signed-approval
+          Require externally signed approvals and verify baseline approval consumers
+      --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
+          External OpenSSH allowed-signers file (cannot override a required policy)
+      --source-ref <SOURCE_REF>
+          External capture URI/key (repeatable); recorded in generated reports
+      --report-index <REPORT_INDEX>
+          Shared report index destination (default reports/index.jsonl next to each report, inside --out)
+  -h, --help
+          Print help
+
+Global options:
+      --allow-out-near-captures  Silence warnings when --out is next to capture metadata
+      --record-absolute-paths    Opt in to absolute local paths in reports and machine-readable output
+```
+
+## saccade a11y auto
+
+```text
+Detect text/UI candidates and check contrast, legibility, glyphs and colour loss offline
+
+Usage: saccade a11y auto [OPTIONS] --out <OUT> <INPUT>
+
+Arguments:
+  <INPUT>  Opaque sRGB image or directory; no regions required
+
+Options:
+      --out <OUT>
+          Report artifacts directory
+      --require-signed-approval
+          Require externally signed approvals and verify baseline approval consumers
+      --approval-allowed-signers <APPROVAL_ALLOWED_SIGNERS>
+          External OpenSSH allowed-signers file (cannot override a required policy)
+      --config <CONFIG>
+          Authoritative declared regions, checked separately and overriding overlap
+      --level <LEVEL>
+          WCAG text contrast target [default: AA] [possible values: aa, aaa]
+      --source-ref <SOURCE_REF>
+          External capture URI/key (repeatable); recorded in generated reports
+      --px-per-pt <PX_PER_PT>
+          Capture pixels per typographic point; omitted scale uses normal-text threshold
+      --report-index <REPORT_INDEX>
+          Shared report index destination (default reports/index.jsonl next to each report, inside --out)
+      --model-cache <MODEL_CACHE>
+          Provisioned PaddleOCR cache (default: existing model cache); never downloads
+      --json
+          Print versioned JSON evidence
+      --junit <JUNIT>
+          Optional JUnit (unknown evidence is skipped)
+  -h, --help
+          Print help
+
+Global options:
+      --allow-out-near-captures  Silence warnings when --out is next to capture metadata
+      --record-absolute-paths    Opt in to absolute local paths in reports and machine-readable output
 ```
 
 ## saccade batch

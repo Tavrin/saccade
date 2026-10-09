@@ -69,6 +69,7 @@ def generate(out):
         x, y = 100, 550
         box = [x-6, y-6, int(draw.textlength(before, font=font)) + 16, size+18]
         draw.text((x, y), before, font=font, fill='black')
+        # Displayed tiny warning contrast is measured directly.
         variants = [('same', image.copy(), before, 0)]
         bad = image.copy()
         bd = ImageDraw.Draw(bad)

@@ -10,9 +10,9 @@ it does not establish that a person can safely view the content.
 
 The recovery review checked the published W3C and ITU definitions. Criteria
 are pinned below; a human must confirm the required edition, delivery rules
-and detector assumptions before using this as an acceptance gate. The **single source of numeric
-criteria** is [THRESHOLDS](../crates/saccade-core/src/safety/thresholds.rs).
-Both JSON reports embed that table, including a citation and `verify` flag for
+and detector assumptions before using this as an acceptance gate. Photosensitivity criteria live in [core THRESHOLDS](../crates/saccade-core/src/safety/thresholds.rs);
+accessibility policy lives in [extension thresholds](../crates/saccade-a11y/src/thresholds.rs).
+The declared accessibility report embeds the combined table, including a citation and `verify` flag for
 each entry. Assumptions, uncertain broadcast wording and detector heuristics
 are explicitly marked. No new network dependency is needed for analysis.
 
@@ -175,14 +175,28 @@ kind = "ui"
 rect = [0.4, 0.7, 0.2, 0.1]
 ```
 
-Pixels in each region are robustly clustered into two linear-RGB groups. A
-5-bit/channel histogram mode seeds background, its farthest real colour seeds
-foreground, then deterministic assignments/component medians refine them for
-at most 12 iterations. The smaller cluster is estimated foreground. Less than
-1% minority support, no second cluster, or residual linear-RGB RMS > 0.08 gives
-WARN/unmeasurable, never a false PASS. Gradients, multiple UI elements and
-antialias fringe can distort the estimate; define tight two-colour rectangles
-and confirm the reported swatches. Transparency/HDR are rejected.
+Contrast uses connected ink selected by encoded-sRGB difference from spatial
+background estimates. Each component uses a ring at radius three pixels with a
+one-pixel guard band; ring channel range must be <=6 encoded levels. Local maxima
+of colour distance select stroke cores; every colour with at least two supported
+core pixels is checked as point evidence, and the worst component wins. Text plateau support also requires a one-pixel eroded ink interior and colour
+separation above the six-level ring tolerance; a repeated antialias edge block
+is insufficient. Mixed channel directions require a full 3x3 colour plateau.
+A core without a supported
+plateau gives a lower bound: above threshold can PASS, below it abstains. A diffuse
+ring or unsupported component abstains. The notes identify the worst component,
+colour support and local ring. UI outlines use 8x8 boundary tiles with at least
+two core pixels of one colour per segment; the worst supported segment wins.
+A supported plateau below target establishes FAIL even if another core is thin.
+A diffuse local background still abstains. A unique stroke peak is sufficient
+for a lower bound when channel directions are monotone: requiring an identical
+second sample could select a pale antialias flank instead of the actual core.
+Opposite channel directions cannot supply a thin-stroke lower bound because
+encoded interpolation can cross a luminance minimum. Rendered legibility uses
+actual core pixels, retaining weak supported colours; detached bodies smaller
+than three pixels high are excluded consistently with its glyph-body analysis.
+Declared-region contrast values can therefore change.
+Transparency/HDR are rejected.
 
 The ratio is `(Llighter+0.05)/(Ldarker+0.05)`. Normal text requires 4.5:1 AA or
 7:1 AAA; declared large text requires 3:1 AA or 4.5:1 AAA. Users confirm large
@@ -229,3 +243,113 @@ error/source-protection paths and actual CLI/schema/JUnit/MCP/video boundaries.
 measured EXPECTED stdout. Existing upscaler and lod-transition sequences are
 checked separately as requested; results and verification exit codes are in
 the implementation handoff.
+
+## Fully automatic image pre-checks
+
+Accessibility policy is now the publishable `saccade-a11y` extension, enabled in
+CLI builds with `prechecks`. The deterministic measurement primitives stay in core.
+
+```sh
+saccade a11y auto capture.png --out auto-accessibility --level AA --json
+saccade a11y auto captures --out auto-accessibility --px-per-pt 1.3333333333333333 --junit auto-accessibility.xml
+```
+
+No human region declaration is required. `--config FILE` retains existing
+`[[region]]` declarations: these are checked separately and take precedence over
+any overlapping automatic candidate. Automatic results always carry
+`provenance: auto_detected`, detector identity, uncalibrated confidence and pixel
+boxes. `saccade-auto-a11y.v1.json`, text and HTML retain the full evidence and the
+existing six colour-vision simulation artifacts. CLI exits: PASS 0, FAIL 1, WARN 0,
+UNMEASURABLE 4 (insufficient evidence), invalid input or exhausted
+analysis budget 2. Exit 0 alone does not establish measured PASS; inspect the
+summary or apply your CI policy to JUnit evidence.
+
+The pinned PaddleOCR detection model is discovered in the existing default model
+cache (override with `--model-cache DIR`) when the
+`ocr` feature, verified built-in detection pin and ONNX runtime are provisioned.
+No recognition model/dictionary is needed and no download or paid/network call is
+attempted. Absence, invalid pins/runtime and inference failure are explicitly
+`unavailable`. The model-free `edge-stroke-lines/2` fallback groups at least three
+aligned similar-height edge components; its support score is 0.7, not a probability.
+`closed-edge-components/1` labels compact boundaries with support on all four
+sides as UI candidates (score 0.75). Its precision-first rule misses many icons,
+rounded controls and nonrectangular components. A box is never proof of semantic
+UI applicability under SC 1.4.11. A run with zero text candidates explicitly says
+“no text detected by …” and cannot have an automatic PASS verdict.
+
+Text contrast uses SC 1.4.3 AA 4.5:1 normal / 3:1 large or SC 1.4.6 AAA 7:1 normal /
+4.5:1 large. UI contrast targets SC 1.4.11's 3:1. Upper-quartile ascender-height letter-body, excluding small detached marks and capped by detected height, divided by
+`--px-per-pt` >=18 is the **large-text assumption**, used only with explicit scale. Without `--px-per-pt`,
+scale is unknown and the normal-text threshold applies. Body bounds do not establish a font's point size,
+boldness, device pixel ratio or final display size. No 14pt-bold inference is made.
+Supply the actual capture/display scale and inspect the recorded assumption.
+
+Core's shared component-local estimator produces swatches and ratio. Nonuniform
+local backgrounds and unsupported cores produce UNMEASURABLE contrast. Independent
+text-quality evidence records the worst component's contrast, body-height proxy,
+sharpness and stroke widths; these are pixel checks, not human reading tests.
+Rendered contrast measures actual displayed cores: a thin core below target is a
+legibility FAIL even when the WCAG source-colour verdict is UNMEASURABLE. Reports
+separate the two verdicts and give each ratio. Missing pinned detection reports
+`next action: saccade models pull runtime and saccade models pull ocr`.
+Automatic size/sharpness/stroke proxy defects are WARN rather than a font-size or
+human-readability FAIL. Explicit declared pixel policies retain their FAIL checks.
+Missing-glyph shapes are WARN candidates; their absence is NOT_VERIFIED coverage,
+never proof of complete fonts. CVD information loss remains a WARN candidate;
+pixels alone cannot establish whether colour conveys required information.
+The required image `summary` reports `wcag_text_contrast` (1.4.3 or 1.4.6),
+`wcag_non_text_contrast` (1.4.11), `rendered_legibility`, `missing_glyphs`, and
+`colour_vision_loss`. Each has a status, counts and worst region reference into
+`automatic`, `declared_contrast` (the declared contrast array), or
+`colour_vision_findings` (the colour-vision findings array). NOT_APPLICABLE means
+there are no candidate UI regions; NOT_VERIFIED means the check cannot verify
+completeness. The text report leads with these criterion results; JSON and MCP
+carry the same summary. Declared contrast measurements are classified against the
+summary’s `--level` target using the declared size class; their original configured
+levels, thresholds and verdicts remain in the separate declared report.
+
+WCAG source-colour contrast asks how much the intended ink colour differs from
+its local background. Rendered contrast asks how much the visible pixels differ:
+anti-aliasing blends thin letters with the background. Thin anti-aliased text can
+therefore fail rendered legibility even when its source colour complies. For
+example, #767676 on white has source contrast about 4.54:1, but small thin letters
+can display much less contrast. A lower bound below the WCAG threshold cannot
+prove that the source colour fails, so WCAG contrast is UNMEASURABLE while the
+independent displayed-pixel legibility check can FAIL.
+
+Image and run verdicts consider measured criteria: FAIL dominates WARN, then PASS
+when some regions were measured, otherwise UNMEASURABLE. No detected text prevents
+PASS. Unknown/unverified checks remain limitations and do not erase a measured
+PASS. Every PASS is scoped to “detected regions; detection completeness unknown”.
+This is neither certification nor a claim that every region was detected.
+
+JUnit emits exactly five testcases per image, with the image as `classname` and
+criterion key as `name`. FAIL produces `<failure>`; WARN, UNMEASURABLE,
+NOT_VERIFIED and NOT_APPLICABLE produce `<skipped>` with the status and evidence.
+To gate CI only on WCAG text contrast, select `name="wcag_text_contrast"`; select
+`rendered_legibility` to gate displayed text independently. Treat selected skipped
+cases as insufficient evidence if your policy requires verified coverage. The
+CLI aggregate still includes all measured criteria; filtering JUnit does not
+change it.
+
+Analysis is bounded to 8,388,608 pixels and 8,192 edge components, with no automatic
+resampling. Fallback detection can miss tiny/short, rotated, touching/joined,
+low-contrast or textured text and mistake aligned shapes for text. Entirely missed
+regions cannot be measured. It cannot establish alt text, ARIA, focus order,
+keyboard operation, complete WCAG conformance or certification.
+
+The permanent offline generated corpus covers bundled DejaVu anti-aliased multiline text on light,
+dark and saturated backgrounds, mixed ink, local backings, mixed outlines, threshold neighbours at
+3:1/4.5:1/7:1, size classes, gradients, low-contrast boundaries and colour-only
+status markers. Ground truth comes from rendering, with no manual labelling.
+Detection precision/recall use one-to-one IoU >=0.5 matching; verdict accuracy counts
+misses as incorrect, and false PASS is measured on generated failing cases.
+Exact finite-corpus counts and bounds are printed by
+`cargo test -p saccade-a11y --test automatic -- --nocapture`.
+This gate does not qualify PaddleOCR runtime execution or real-world detection.
+Strict core support can leave thin anti-aliased glyphs unmeasurable even on flat
+backgrounds. The robust letter-body size proxy still does not establish typographic size.
+
+MCP mirrors this through `saccade_measure` operation `a11y_auto` with `input`, `out`,
+optional `config`, `level`, `px_per_pt`, `model_cache`, `junit`, under the same
+file-root confinement as the declared-region pre-check. No network authority exists.

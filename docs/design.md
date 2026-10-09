@@ -1,7 +1,11 @@
 # Architecture
 
-Saccade has two crates. `saccade-core` owns comparison, evidence contracts,
+`saccade-core` owns comparison, reusable measurements, evidence contracts,
 validation and portable rendering. `saccade` owns CLI/MCP transport and config.
+First-party extensions `saccade-print`, `saccade-geo` and `saccade-a11y` own their
+specialist policy/pipelines. Accessibility keeps text-quality, contrast estimation,
+colour simulation and OCR detection in core; WCAG policy and reports live in the
+publishable extension.
 The core defaults to parallel image processing. Optional graphics, AI,
 workbench, evaluation, prechecks and schema features isolate computation while
 keeping evidence types readable.

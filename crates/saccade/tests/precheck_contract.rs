@@ -217,3 +217,256 @@ fn video_metadata_and_missing_optional_ffmpeg() {
     assert_eq!(result.status.code(), Some(2));
     assert!(String::from_utf8_lossy(&result.stdout).contains("ffmpeg on PATH"));
 }
+
+#[test]
+fn automatic_cli_no_text_exits_insufficient_evidence() {
+    let tmp = tempfile::tempdir().unwrap();
+    let input = tmp.path().join("blank.png");
+    image::RgbImage::from_pixel(80, 50, image::Rgb([255; 3]))
+        .save(&input)
+        .unwrap();
+    let result = cli(&[
+        "a11y",
+        "auto",
+        input.to_str().unwrap(),
+        "--out",
+        tmp.path().join("report").to_str().unwrap(),
+        "--json",
+    ]);
+    assert_eq!(result.status.code(), Some(4), "{result:?}");
+    let value: Value = serde_json::from_slice(&result.stdout).unwrap();
+    assert_eq!(value["data"]["verdict"], "UNMEASURABLE");
+    let report: Value = serde_json::from_slice(
+        &std::fs::read(tmp.path().join("report/saccade-auto-a11y.v1.json")).unwrap(),
+    )
+    .unwrap();
+    assert!(
+        report["images"][0]["text_detection"]
+            .as_str()
+            .unwrap()
+            .starts_with("no text detected")
+    );
+}
+
+#[test]
+fn automatic_cli_directory_schema_junit_and_mcp_mirror() {
+    let tmp = tempfile::tempdir().unwrap();
+    let root = tmp.path();
+    let input = root.join("captures");
+    std::fs::create_dir(&input).unwrap();
+    image::RgbImage::from_pixel(80, 50, image::Rgb([255; 3]))
+        .save(input.join("blank.png"))
+        .unwrap();
+    image::RgbImage::from_fn(60, 50, |x, y| {
+        image::Rgb(
+            if (10..40).contains(&x)
+                && (10..40).contains(&y)
+                && (x == 10 || x == 39 || y == 10 || y == 39)
+            {
+                [100; 3]
+            } else {
+                [255; 3]
+            },
+        )
+    })
+    .save(input.join("outline.png"))
+    .unwrap();
+    let out = root.join("auto-report");
+    let junit = root.join("auto.xml");
+    let result = cli(&[
+        "a11y",
+        "auto",
+        input.to_str().unwrap(),
+        "--out",
+        out.to_str().unwrap(),
+        "--json",
+        "--junit",
+        junit.to_str().unwrap(),
+        "--level",
+        "AAA",
+    ]);
+    assert_eq!(
+        result.status.code(),
+        Some(4),
+        "{}",
+        String::from_utf8_lossy(&result.stderr)
+    );
+    let value: Value =
+        serde_json::from_slice(&std::fs::read(out.join("saccade-auto-a11y.v1.json")).unwrap())
+            .unwrap();
+    schema(&value, "saccade-auto-a11y.v1.schema.json");
+    assert_eq!(value["verdict"], "UNMEASURABLE");
+    assert_eq!(value["level"], "AAA");
+    let cli_json: Value = serde_json::from_slice(&result.stdout).unwrap();
+    assert_eq!(
+        cli_json["data"]["images"][0]["summary"],
+        value["images"][0]["summary"]
+    );
+
+    assert!(
+        value["images"][0]["text_detection"]
+            .as_str()
+            .unwrap()
+            .starts_with("no text detected")
+    );
+    assert!(std::fs::read_to_string(junit).unwrap().contains("<skipped"));
+    let bad = cli(&[
+        "a11y",
+        "auto",
+        input.to_str().unwrap(),
+        "--out",
+        root.join("bad-auto").to_str().unwrap(),
+        "--px-per-pt",
+        "0",
+    ]);
+    assert_eq!(bad.status.code(), Some(2));
+    let outputs = tempfile::tempdir().unwrap();
+    let mut child = Command::new(env!("CARGO_BIN_EXE_saccade"))
+        .args(["mcp", "--root", root.to_str().unwrap()])
+        .arg("--out-root")
+        .arg(outputs.path())
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .spawn()
+        .unwrap();
+    let mut stdin = child.stdin.take().unwrap();
+    for msg in [
+        json!({"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"saccade_measure","arguments":{"operation":"a11y_auto","input":"captures","out":"automatic","level":"AAA"}}}),
+        json!({"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"saccade_measure","arguments":{"operation":"a11y_auto","input":"captures","out":"../escape"}}}),
+    ] {
+        writeln!(stdin, "{msg}").unwrap();
+    }
+    drop(stdin);
+    let output = child.wait_with_output().unwrap();
+    assert!(output.status.success());
+    let replies: Vec<Value> = String::from_utf8(output.stdout)
+        .unwrap()
+        .lines()
+        .map(|s| serde_json::from_str(s).unwrap())
+        .collect();
+    assert_eq!(replies[0]["result"]["isError"], false, "{}", replies[0]);
+    assert_eq!(
+        replies[0]["result"]["structuredContent"]["data"]["verdict"],
+        "UNMEASURABLE"
+    );
+    assert_eq!(replies[1]["result"]["isError"], true);
+    let artifact: Value = serde_json::from_slice(
+        &std::fs::read(outputs.path().join("automatic/saccade-auto-a11y.v1.json")).unwrap(),
+    )
+    .unwrap();
+    schema(&artifact, "saccade-auto-a11y.v1.schema.json");
+    assert_eq!(artifact, value);
+    assert_eq!(
+        replies[0]["result"]["structuredContent"]["data"]["images"][0]["summary"],
+        value["images"][0]["summary"]
+    );
+
+    let doc: Value =
+        serde_json::from_str(saccade_core::schema_catalog::get("saccade-auto-a11y.v1").unwrap())
+            .unwrap();
+    let validator = jsonschema::validator_for(&doc).unwrap();
+    // Establish a valid measured PASS before testing independent summary contradictions.
+    let clean = root.join("clean.png");
+    image::RgbImage::from_fn(100, 50, |x, y| {
+        image::Rgb(
+            if (12..26).contains(&y)
+                && [20, 40, 60]
+                    .iter()
+                    .any(|left| (*left..*left + 2).contains(&x))
+            {
+                [0; 3]
+            } else {
+                [255; 3]
+            },
+        )
+    })
+    .save(&clean)
+    .unwrap();
+    let clean_out = root.join("clean-out");
+    let clean_result = cli(&[
+        "a11y",
+        "auto",
+        clean.to_str().unwrap(),
+        "--out",
+        clean_out.to_str().unwrap(),
+    ]);
+    assert_eq!(clean_result.status.code(), Some(0));
+    let pass: Value = serde_json::from_slice(
+        &std::fs::read(clean_out.join("saccade-auto-a11y.v1.json")).unwrap(),
+    )
+    .unwrap();
+    assert_eq!(pass["verdict"], "PASS", "{pass}");
+    assert!(validator.is_valid(&pass));
+    for criterion in [
+        "wcag_text_contrast",
+        "wcag_non_text_contrast",
+        "rendered_legibility",
+    ] {
+        for status in ["FAIL", "WARN"] {
+            let mut contradiction = pass.clone();
+            contradiction["images"][0]["summary"][criterion]["status"] = json!(status);
+            contradiction["images"][0]["summary"][criterion]["counts"][status.to_lowercase()] =
+                json!(1);
+            contradiction["images"][0]["summary"][criterion]["worst_region"] =
+                json!({"source":"automatic","index":0});
+            assert!(
+                !validator.is_valid(&contradiction),
+                "image PASS with a measured {criterion} {status}"
+            );
+        }
+    }
+    let mut impossible = value.clone();
+    impossible["verdict"] = json!("PASS");
+    impossible["images"] = json!([]);
+    assert!(!validator.is_valid(&impossible));
+    impossible = value.clone();
+    impossible["images"][0]["verdict"] = json!("PASS");
+    assert!(!validator.is_valid(&impossible));
+    impossible = value.clone();
+    impossible["images"][1]["automatic"][0]["verdict"] = json!("PASS");
+    impossible["images"][1]["automatic"][0]["ratio"] = Value::Null;
+    assert!(!validator.is_valid(&impossible));
+    impossible = value.clone();
+    impossible["images"][1]["automatic"][0]["region"]["rect_px"][2] = json!(0);
+    assert!(!validator.is_valid(&impossible));
+    for criterion in [
+        "wcag_text_contrast",
+        "wcag_non_text_contrast",
+        "rendered_legibility",
+        "missing_glyphs",
+        "colour_vision_loss",
+    ] {
+        impossible = value.clone();
+        impossible["images"][0]["summary"][criterion]["status"] = json!("PASS");
+        assert!(
+            !validator.is_valid(&impossible),
+            "PASS without measured regions: {criterion}"
+        );
+        for status in ["FAIL", "WARN"] {
+            impossible = value.clone();
+            impossible["images"][0]["verdict"] = json!("PASS");
+            impossible["images"][0]["summary"][criterion]["status"] = json!(status);
+            impossible["images"][0]["summary"][criterion]["counts"][status.to_lowercase()] =
+                json!(1);
+            impossible["images"][0]["summary"][criterion]["worst_region"] =
+                json!({"source":"automatic","index":0});
+            assert!(
+                !validator.is_valid(&impossible),
+                "image PASS with {criterion} {status}"
+            );
+        }
+    }
+    // Positive invented counts must not stand in for actual measured evidence.
+    impossible = value.clone();
+    impossible["images"][0]["summary"]["wcag_text_contrast"]["status"] = json!("PASS");
+    impossible["images"][0]["summary"]["wcag_text_contrast"]["counts"]["pass"] = json!(1);
+    impossible["images"][0]["summary"]["wcag_text_contrast"]["worst_region"] =
+        json!({"source":"automatic","index":0});
+    assert!(!validator.is_valid(&impossible));
+    impossible = value.clone();
+    impossible["images"][0]
+        .as_object_mut()
+        .unwrap()
+        .remove("summary");
+    assert!(!validator.is_valid(&impossible));
+}

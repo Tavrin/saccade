@@ -2,7 +2,7 @@
 #![allow(missing_docs, clippy::unwrap_used, clippy::expect_used)]
 
 use image::{Rgb, RgbImage};
-use saccade_core::a11y;
+use saccade_a11y::a11y;
 use saccade_core::safety::{self, Options, Standard};
 use std::path::Path;
 
@@ -226,16 +226,21 @@ fn published_ciede2000_vectors_and_deutan_information_loss() {
 
 #[test]
 fn normal_large_aaa_and_ui_contrast() {
-    assert!((a11y::contrast_ratio([1.0; 3], [(1.05 / 4.5) - 0.05; 3]) - 4.5).abs() < 1e-12);
+    assert!(
+        (saccade_core::contrast::contrast_ratio([1.0; 3], [(1.05 / 4.5) - 0.05; 3]) - 4.5).abs()
+            < 1e-12
+    );
     let tmp = tempfile::tempdir().unwrap();
     let input = tmp.path().join("text.png");
     // 118 on white is 4.542:1; 149 on white is 2.995:1.
     RgbImage::from_fn(100, 80, |x, y| {
-        Rgb(if x % 20 < 8 {
-            if y < 40 { [118; 3] } else { [149; 3] }
-        } else {
-            [255; 3]
-        })
+        Rgb(
+            if (12..88).contains(&x) && x % 20 < 8 && (4..36).contains(&(y % 40)) {
+                if y < 40 { [118; 3] } else { [149; 3] }
+            } else {
+                [255; 3]
+            },
+        )
     })
     .save(&input)
     .unwrap();

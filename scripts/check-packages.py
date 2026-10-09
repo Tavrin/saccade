@@ -12,6 +12,7 @@ READMES = {
     'saccade-core': ROOT / 'crates/saccade-core/README.md',
     'saccade': ROOT / 'README.md',
     'saccade-geo': ROOT / 'crates/saccade-geo/README.md',
+    'saccade-a11y': ROOT / 'crates/saccade-a11y/README.md',
     'saccade-print': ROOT / 'crates/saccade-print/README.md',
 }
 ALLOWED = ('.cargo_vcs_info.json', 'Cargo.lock', 'Cargo.toml', 'Cargo.toml.orig', 'README.md',

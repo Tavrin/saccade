@@ -90,6 +90,7 @@ fn help_lists_active_commands_and_watch_alias_stays_hidden() {
         top.len(),
         60 + usize::from(cfg!(feature = "compression"))
             + usize::from(cfg!(feature = "assist"))
+            + usize::from(cfg!(feature = "prechecks"))
             + usize::from(cfg!(feature = "print"))
             + usize::from(cfg!(feature = "geo"))
             + 4 * usize::from(cfg!(feature = "products"))
@@ -98,6 +99,10 @@ fn help_lists_active_commands_and_watch_alias_stays_hidden() {
         "{top:?}"
     );
     assert!(!top.contains(&"batch-probe"));
+    assert_eq!(top.contains(&"a11y"), cfg!(feature = "prechecks"));
+    if cfg!(feature = "prechecks") {
+        assert!(operations.iter().any(|s| s == "a11y auto"));
+    }
     assert_eq!(top.contains(&"assist"), cfg!(feature = "assist"));
     for name in [
         "batch",
@@ -500,10 +505,15 @@ fn local_tools_and_preview_never_authorize_network_and_images_are_explicit() {
     let out = tmp.path().join("out");
     image(&root.join("base"), "a.png", 40);
     image(&root.join("capture"), "a.png", 200);
+    let policy_args = if cfg!(feature = "ai") {
+        vec!["--user-config", user_config.to_str().unwrap()]
+    } else {
+        vec![]
+    };
     let replies = mcp(
         &[&root],
         Some(&out),
-        &[],
+        &policy_args,
         &[
             json!({"jsonrpc":"2.0","id":1,"method":"tools/list"}),
             call(

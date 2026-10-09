@@ -387,7 +387,7 @@ jobs:
           workspace = tomllib.loads(pathlib.Path('Cargo.toml').read_text())
           if workspace['workspace']['package']['version'] != version:
               raise SystemExit('::error::Tag and workspace versions differ')
-          for crate, output in [('saccade-core', 'core'), ('saccade-print', 'print'),
+          for crate, output in [('saccade-core', 'core'), ('saccade-print', 'print'), ('saccade-a11y', 'a11y'),
                                 ('saccade-geo', 'geo'), ('saccade', 'cli')]:
               manifest = tomllib.loads(pathlib.Path(f'crates/{crate}/Cargo.toml').read_text())
               package_version = manifest['package']['version']
@@ -413,7 +413,7 @@ jobs:
       - uses: dtolnay/rust-toolchain@7e38f4b43b4db5c8dd498af069a4f6196df1d067 # stable
         if: >-
           steps.versions.outputs.core == 'true' || steps.versions.outputs.print == 'true' ||
-          steps.versions.outputs.geo == 'true' || steps.versions.outputs.cli == 'true'
+          steps.versions.outputs.a11y == 'true' || steps.versions.outputs.geo == 'true' || steps.versions.outputs.cli == 'true'
         with:
           toolchain: stable
       - name: Authenticate for saccade-core
@@ -434,6 +434,15 @@ jobs:
         env:
           CARGO_REGISTRY_TOKEN: ${{ steps.print-auth.outputs.token }}
         run: cargo publish --locked --registry crates-io -p saccade-print
+      - name: Authenticate for saccade-a11y
+        if: steps.versions.outputs.a11y == 'true'
+        id: a11y-auth
+        uses: rust-lang/crates-io-auth-action@v1.0.5
+      - name: Publish saccade-a11y
+        if: steps.versions.outputs.a11y == 'true'
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ steps.a11y-auth.outputs.token }}
+        run: cargo publish --locked --registry crates-io -p saccade-a11y
       - name: Authenticate for saccade-geo
         if: steps.versions.outputs.geo == 'true'
         id: geo-auth

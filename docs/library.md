@@ -211,7 +211,7 @@ AVIF adds encoding support, not another command. Deprecated argv spellings in
 | `experiment rank` | b | `main.rs + perf_cmd.rs + temporal_cmd.rs + s6.rs` | `ablate::run_repeats; sequence::run_sequence; rank::run_rank` | `deferred` | default / runtime feature refusal where applicable |
 | `experiment bisect` | b | `main.rs + perf_cmd.rs + temporal_cmd.rs + s6.rs` | `ablate::run_repeats; sequence::run_sequence; rank::run_rank` | `deferred` | default / runtime feature refusal where applicable |
 | `experiment safety` | b | `precheck.rs` | `safety` | `deferred` | prechecks |
-| `experiment a11y` | b | `precheck.rs` | `a11y` | `deferred` | prechecks |
+| `experiment a11y` | b | `precheck.rs` | `saccade_a11y::a11y` | `deferred` | prechecks |
 | `batch-probe` | a | `batch_cmd.rs` | `batch::probe` | `existing` | default / runtime feature refusal where applicable |
 
 ## Remaining orchestration and retained hosts
@@ -406,3 +406,8 @@ let report = run_playwright(Path::new("screenshots.json"), Path::new("ingested")
 assert!(!report.report.entries.is_empty());
 # Ok::<(), CommandError>(())
 ```
+
+Accessibility policy entry points live in the first-party `saccade-a11y` extension:
+`saccade_a11y::a11y` for declared regions and `saccade_a11y::auto` (also
+`saccade_a11y::run`) for automatic checks. Core retains `contrast` and
+`text_quality`; core never depends on the accessibility extension.
