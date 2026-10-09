@@ -227,3 +227,5 @@ pub mod motion_stats;
 
 // N18
 pub mod derivatives;
+/// Typed command-level Rust entry points and stateless approval policy.
+pub mod workflows;

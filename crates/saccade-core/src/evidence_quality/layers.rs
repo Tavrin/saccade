@@ -260,7 +260,7 @@ pub struct LayerScope {
 pub struct Policy {
     /// Generic screen-space dump relative to the capture parent, used if no ID manifest exists.
     pub dump: Option<String>,
-    /// Optional sidecar filename in each image parent; otherwise <filename>.layers.json.
+    /// Optional sidecar filename in each image parent; otherwise `<filename>.layers.json`.
     pub manifest: Option<String>,
     /// Optional layer inclusion predicate.
     pub scope: Option<LayerScope>,

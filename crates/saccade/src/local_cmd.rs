@@ -1,7 +1,7 @@
 //! Local 1.0 inspection and proposal operations. No provider dispatch.
 use crate::agent::CliError;
 use clap::{Args, Subcommand, ValueEnum};
-use saccade_core::evidence::canonical::{self, Digest};
+use saccade_core::evidence::canonical;
 use saccade_core::evidence::case::*;
 use saccade_core::evidence::{self, Artifact, Document};
 use serde_json::{Value, json};
@@ -1180,188 +1180,17 @@ pub(crate) fn report_input(
     name: &str,
     baseline: bool,
 ) -> Option<PathBuf> {
-    let root = if baseline {
-        report.baseline_dir.as_ref()
-    } else {
-        report.capture_dir.as_ref()
-    }?;
-    let root = saccade_core::paths::resolve(root, report_file);
-    Some(if root.is_file() {
-        root
-    } else {
-        root.join(name)
-    })
+    saccade_core::workflows::report_input(report, report_file, name, baseline)
 }
 
 pub(crate) fn case_from_report(
     report: &saccade_core::Report,
     report_file: &Path,
 ) -> Result<EvidenceCase, CliError> {
-    let document = report_file.with_file_name("evidence.json");
-    let entries = report
-        .entries
-        .iter()
-        .map(|e| e.name.clone())
-        .collect::<Vec<_>>();
-    let measurement = Measurement::from_report(
+    Ok(saccade_core::workflows::case_from_report(
+        report,
         report_file,
-        &document,
-        entries.clone(),
-        "native+flip.v1".into(),
-        "saccade-config.v1".into(),
-    )?;
-    let mut inputs = Vec::new();
-    for entry in &report.entries {
-        for (role, path, hash) in [
-            ("baseline", &entry.paths.baseline, &entry.baseline_sha256),
-            ("capture", &entry.paths.capture, &entry.capture_sha256),
-        ] {
-            if let (Some(_path), Some(hash)) = (path, hash) {
-                let input_path = report_input(report, report_file, &entry.name, role == "baseline")
-                    .ok_or_else(|| {
-                        CliError::new("invalid_evidence", "measurement has no source directory")
-                    })?;
-                let root = if role == "baseline" {
-                    report.baseline_dir.as_deref()
-                } else {
-                    report.capture_dir.as_deref()
-                }
-                .map(|p| saccade_core::paths::resolve(p, report_file))
-                .unwrap_or_else(|| input_path.parent().unwrap_or(Path::new(".")).to_owned());
-                let root = if root.is_file() {
-                    root.parent().unwrap_or(Path::new(".")).to_owned()
-                } else {
-                    root
-                };
-                let mut sidecars = Vec::new();
-                let mut directories = Vec::new();
-                let mut current = input_path.parent();
-                while let Some(dir) = current {
-                    if !dir.starts_with(&root) {
-                        break;
-                    }
-                    directories.push(dir.to_owned());
-                    if dir == root {
-                        break;
-                    }
-                    current = dir.parent();
-                }
-                directories.reverse();
-                for dir in directories {
-                    let file = dir.join(&report.config.meta.name);
-                    if file.is_file() {
-                        sidecars.push(ArtifactRef {
-                            path: lexical_record(
-                                &file,
-                                document.parent().unwrap_or(Path::new(".")),
-                            ),
-                            sha256: Digest::of_bytes(
-                                &saccade_core::root_policy::io::read(&file)
-                                    .map_err(|e| CliError::io(e.to_string()))?,
-                            ),
-                        });
-                    }
-                }
-                if let Some(stem) = input_path.file_stem().and_then(|s| s.to_str()) {
-                    let file =
-                        input_path.with_file_name(format!("{stem}.{}", report.config.meta.name));
-                    if file.is_file() {
-                        sidecars.push(ArtifactRef {
-                            path: lexical_record(
-                                &file,
-                                document.parent().unwrap_or(Path::new(".")),
-                            ),
-                            sha256: Digest::of_bytes(
-                                &saccade_core::root_policy::io::read(&file)
-                                    .map_err(|e| CliError::io(e.to_string()))?,
-                            ),
-                        });
-                    }
-                }
-                inputs.push(Input {
-                    id: format!("{role}:{}", entry.name),
-                    content: ArtifactRef {
-                        path: lexical_record(
-                            &input_path,
-                            document.parent().unwrap_or(Path::new(".")),
-                        ),
-                        sha256: Digest::parse(format!("sha256:{hash}"))?,
-                    },
-                    sidecars,
-                    native_samples: Availability::missing(
-                        "Native interpretation is recorded in the authoritative measurement.",
-                    ),
-                    capture: Availability::missing("No typed capture context was supplied."),
-                    build: Availability::missing("No build identity was supplied."),
-                    provenance: Provenance {
-                        source_roots: saccade_core::paths::source_paths(&root)
-                            .map_err(|e| CliError::io(e.to_string()))?,
-                        ..Default::default()
-                    },
-                });
-            }
-        }
-    }
-    let valid = report.capture_validity();
-    let validity = Validity {
-        status: match valid.status {
-            saccade_core::meta::Validity::Valid => ValidityStatus::Valid,
-            saccade_core::meta::Validity::Invalid => ValidityStatus::Invalid,
-            _ => ValidityStatus::Unknown,
-        },
-        reasons: valid.reasons,
-    };
-    let source_roots = inputs
-        .iter()
-        .flat_map(|i| i.provenance.source_roots.clone())
-        .collect();
-    let mut case = EvidenceCase {
-        case_id: Digest::of_bytes(b""),
-        inputs,
-        measurement,
-        scope: Scope {
-            entries,
-            exclusions: report.config.ignore.clone(),
-        },
-        effective_config: serde_json::from_value(serde_json::to_value(&report.config)?)?,
-        calibration: Availability::missing("No calibration input was supplied."),
-        validity,
-        facts: Vec::new(),
-        intent: Availability::missing("No declared intent was supplied."),
-        requests: Vec::new(),
-        proposals: Vec::new(),
-        human_decisions: Vec::new(),
-        next_actions: Vec::new(),
-        limits: vec!["Measurement does not confer human approval.".into()],
-        provenance: Provenance {
-            source_roots,
-            ..Default::default()
-        },
-    };
-    for entry in &report.entries {
-        case.facts.push(Fact {
-            id: format!("native-equality:{}", entry.name),
-            name: "native decoded-sample equality".into(),
-            units: "boolean".into(),
-            scope: Scope {
-                entries: vec![entry.name.clone()],
-                exclusions: Vec::new(),
-            },
-            source: FactSource::Measured,
-            artifact: case.measurement.report.clone(),
-            source_identity: case.measurement.semantic_sha256.clone(),
-            value: entry.bit_identical.map_or_else(
-                || Availability::missing("No complete decoded pair was measured."),
-                |v| Availability::Available {
-                    value: FactValue::Boolean(v),
-                },
-            ),
-            depends_on_model_observation: false,
-            observation_refs: Vec::new(),
-        });
-    }
-    case.refresh_id()?;
-    Ok(case)
+    )?)
 }
 
 pub(crate) fn short(text: &str, chars: usize) -> String {
@@ -1418,200 +1247,25 @@ pub(crate) fn persist_case(
     report_file: &Path,
     args: &crate::IntentArgs,
 ) -> Result<(), CliError> {
-    if report.entries.is_empty() {
-        return Ok(());
-    }
-    let mut case = case_from_report(report, report_file)?;
-    if case.inputs.is_empty() {
-        return Ok(());
-    }
-    let source = report_file.with_file_name("evidence.json");
-    let dir = report_file.parent().unwrap_or(Path::new("."));
-    if let Some(bundled) = saccade_core::render::bundle::measured_case(report, dir)? {
-        for (index, input) in case.inputs.iter_mut().enumerate() {
-            let copy = bundled
-                .inputs
-                .iter()
-                .find(|i| i.id == input.id)
-                .ok_or_else(|| CliError::new("invalid_evidence", "missing portable input"))?;
-            input.content = copy.content.clone();
-            for (sidecar_index, sidecar) in input.sidecars.iter_mut().enumerate() {
-                sidecar.verify(&source)?;
-                let bytes = saccade_core::root_policy::io::read(saccade_core::paths::resolve(
-                    &sidecar.path,
-                    &source,
-                ))
-                .map_err(|e| CliError::io(e.to_string()))?;
-                let target = dir.join(format!("assets/input-{index}-sidecar-{sidecar_index}.json"));
-                std::fs::write(&target, bytes).map_err(|e| CliError::io(e.to_string()))?;
-                *sidecar = ArtifactRef::from_file(&target, &source, false)?;
-            }
-        }
-    }
-    if let Some(file) = &args.intent_file {
-        let value = read_value(file)?;
-        let mut intent: Intent =
-            if value.get("schema").and_then(Value::as_str) == Some(saccade_core::intent::SCHEMA) {
-                let visual: saccade_core::intent::VisualIntent = serde_json::from_value(value)?;
-                visual.validate(file)?;
-                Intent {
-                    id: "visual-intent".into(),
-                    objective: visual.objective,
-                    assurance: IntentAssurance::Structured,
-                    expected_changes: Vec::new(),
-                    invariants: vec!["no change elsewhere".into()],
-                    criteria: Vec::new(),
-                    source: None,
-                    mask_sources: Vec::new(),
-                    provenance: Provenance::default(),
-                }
-            } else {
-                serde_json::from_value(value)?
-            };
-        intent.assurance = IntentAssurance::Structured;
-        let target = dir.join("assets/intent.json");
-        std::fs::copy(file, &target).map_err(|e| CliError::io(e.to_string()))?;
-        if let Ok(visual) =
-            serde_json::from_value::<saccade_core::intent::VisualIntent>(read_value(file)?)
-        {
-            visual.validate(file)?;
-            for change in &visual.changes {
-                if let Some(mask) = &change.mask {
-                    let source_mask = file.parent().unwrap_or(Path::new(".")).join(mask);
-                    let bundled_mask = target.parent().unwrap_or(dir).join(mask);
-                    if let Some(parent) = bundled_mask.parent() {
-                        std::fs::create_dir_all(parent).map_err(|e| CliError::io(e.to_string()))?;
-                    }
-                    std::fs::copy(&source_mask, &bundled_mask)
-                        .map_err(|e| CliError::io(e.to_string()))?;
-                    intent.mask_sources.push(ArtifactRef::from_file(
-                        &bundled_mask,
-                        &source,
-                        false,
-                    )?);
-                }
-            }
-        }
-        intent.source = Some(ArtifactRef::from_file(&target, &source, false)?);
-        case.intent = Availability::Available { value: intent };
-    } else if let Some(text) = &args.intent {
-        case.intent = Availability::Available {
-            value: Intent {
-                id: "declared-intent".into(),
-                objective: text.clone(),
-                assurance: IntentAssurance::Text,
-                expected_changes: Vec::new(),
-                invariants: Vec::new(),
-                criteria: Vec::new(),
-                source: None,
-                mask_sources: Vec::new(),
-                provenance: Provenance::default(),
-            },
-        };
-    }
-    if let Some(file) = &args.changes_file {
-        let changes: Vec<DeclaredChange> = serde_json::from_value(read_value(file)?)?;
-        if let Availability::Available { value: intent } = &mut case.intent {
-            intent.expected_changes = changes;
-        } else {
-            return Err(CliError::usage(
-                "--changes-file requires --intent or --intent-file",
-            ));
-        }
-    }
-    case.refresh_id()?;
-    case.validate()?;
-    write_value(
-        &source,
-        &serde_json::to_value(Document::new(Artifact::Case(Box::new(case))))?,
-    )?;
-    saccade_core::render::render_html(report, dir)?;
-    Ok(())
+    Ok(saccade_core::workflows::persist_case(
+        report,
+        report_file,
+        &crate::intent_options(args),
+    )?)
 }
 
-pub(crate) fn visual_intent(
-    args: &crate::IntentArgs,
-) -> Result<Option<(saccade_core::intent::VisualIntent, PathBuf)>, CliError> {
-    let Some(path) = &args.intent_file else {
-        return Ok(None);
-    };
-    let value = read_value(path)?;
-    if value.get("schema").and_then(Value::as_str) != Some(saccade_core::intent::SCHEMA) {
-        return Ok(None);
-    }
-    let intent: saccade_core::intent::VisualIntent = serde_json::from_value(value)?;
-    intent.validate(path)?;
-    Ok(Some((intent, path.clone())))
-}
-
-pub(crate) fn verify_visual_intent(
-    report: &saccade_core::Report,
-    out: &Path,
-    intent: Option<&(saccade_core::intent::VisualIntent, PathBuf)>,
-) -> Result<bool, CliError> {
-    let result_file = out.join(saccade_core::intent::RESULT_FILE);
-    let Some((declaration, path)) = intent else {
-        if result_file.exists() {
-            std::fs::remove_file(&result_file).map_err(|e| CliError::io(e.to_string()))?;
-        }
-        return Ok(false);
-    };
-    let verification = saccade_core::intent::verify(declaration, path, report);
-    write_value(&result_file, &serde_json::to_value(&verification)?)?;
-    let summary = format!(
-        "<section aria-label=\"Intent verification\"><h2>Intent verification</h2><p>Matched: {}; unexpected: {}; missing: {}; unmeasurable: {}. <a href=\"{}\">Full deterministic findings</a>.</p></section>",
-        verification.matched.len(),
-        verification.unexpected.len(),
-        verification.missing.len(),
-        verification.unmeasurable.len(),
-        saccade_core::intent::RESULT_FILE
-    );
-    let html_path = out.join("index.html");
-    let html = std::fs::read_to_string(&html_path).map_err(|e| CliError::io(e.to_string()))?;
-    std::fs::write(
-        &html_path,
-        html.replacen("<main>", &format!("<main>{summary}"), 1),
-    )
-    .map_err(|e| CliError::io(e.to_string()))?;
-    Ok(!verification.unexpected.is_empty()
-        || !verification.missing.is_empty()
-        || !verification.unmeasurable.is_empty())
-}
 pub(crate) fn case_for_result(
     report: &saccade_core::Report,
     report_file: &Path,
 ) -> Result<EvidenceCase, CliError> {
-    let file = report_file.with_file_name("evidence.json");
-    if file.is_file() {
-        let doc = Document::read(&file)?;
-        if let Artifact::Case(case) = doc.artifact {
-            if case.measurement.semantic_sha256 != Measurement::report_identity(report)? {
-                return Err(CliError::new("stale_evidence", "case and report differ"));
-            }
-            return Ok(*case);
-        }
-    }
-    case_from_report(report, report_file)
+    Ok(saccade_core::workflows::case_for_result(
+        report,
+        report_file,
+    )?)
 }
 
 pub(crate) fn lexical_record(path: &Path, base: &Path) -> String {
-    let source = path.components().collect::<Vec<_>>();
-    let root = base.components().collect::<Vec<_>>();
-    let shared = source.iter().zip(&root).take_while(|(a, b)| a == b).count();
-    if shared == 0 {
-        return saccade_core::paths::portable(path);
-    }
-    let mut parts = vec!["..".to_owned(); root.len() - shared];
-    parts.extend(
-        source[shared..]
-            .iter()
-            .map(|c| c.as_os_str().to_string_lossy().into_owned()),
-    );
-    if parts.is_empty() {
-        ".".into()
-    } else {
-        parts.join("/")
-    }
+    saccade_core::workflows::lexical_record(path, base)
 }
 
 fn verify_case_files(case: &EvidenceCase, document: &Path) -> Result<(), CliError> {

@@ -13,7 +13,7 @@
 //! * A *class* is a predicate over labels, in the shared mask-spec grammar
 //!   (`NAME=id=1,2`, `NAME=range=1,5`, `NAME=above=0`, `NAME=mask`). Label-glob
 //!   predicates need a dictionary and are refused. With no class declared the
-//!   single class `foreground` is "label is not zero"; [`ClassSelection::EachLabel`]
+//!   single class `foreground` is "label is not zero"; [`ClassSelection::EachLabel`](crate::mask_metrics::ClassSelection::EachLabel)
 //!   makes every distinct non-void label its own class.
 //! * *Void* pixels are those whose **reference** label matches the void
 //!   predicate. They are removed from every count in both images, and a mask
@@ -44,7 +44,7 @@ pub const SCHEMA: &str = "saccade-mask-metrics.v1";
 pub const MAX_PIXELS: u64 = 100_000_000;
 /// Largest accepted boundary tolerance, in pixels.
 pub const MAX_TOLERANCE_PX: f64 = 64.0;
-/// Largest number of classes created by [`ClassSelection::EachLabel`].
+/// Largest number of classes created by [`ClassSelection::EachLabel`](crate::mask_metrics::ClassSelection::EachLabel).
 pub const MAX_EACH_LABEL: usize = 256;
 
 /// A decoded integer label image.

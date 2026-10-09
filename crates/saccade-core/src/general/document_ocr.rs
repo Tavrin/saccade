@@ -17,7 +17,7 @@ pub struct Request {
     pub media_type: String,
     /// Explicit dated model identifier; aliases are refused.
     pub model: String,
-    /// Explicit zero-based PDF pages; images require [0].
+    /// Explicit zero-based PDF pages; images require `[0]`.
     pub pages: Vec<u32>,
 }
 /// Markdown observation for one document page; absent geometry stays absent.

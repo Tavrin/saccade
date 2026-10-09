@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 pub struct Saliency {
     /// Map resolution, at most 64 by 64.
     pub size: [u32; 2],
-    /// Row-major normalized saliency in [0,1].
+    /// Row-major normalized saliency in `[0,1]`.
     pub map: Vec<f32>,
     /// Original-pixel saliency-weighted centroid, or centre for a flat image.
     pub focal_point: [f32; 2],

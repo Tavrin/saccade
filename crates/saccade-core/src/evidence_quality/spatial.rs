@@ -190,7 +190,7 @@ pub struct Scale {
 #[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Tile {
-    /// [x,y,width,height] in full-resolution pixels.
+    /// `[x,y,width,height]` in full-resolution pixels.
     pub rect_px: [u32; 4],
     /// Included pixels.
     pub pixels: u64,

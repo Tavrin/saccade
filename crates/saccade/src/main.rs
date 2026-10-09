@@ -228,6 +228,13 @@ struct IntentArgs {
     #[arg(long, value_name = "FILE")]
     changes_file: Option<PathBuf>,
 }
+fn intent_options(args: &IntentArgs) -> saccade_core::workflows::IntentOptions {
+    saccade_core::workflows::IntentOptions {
+        intent: args.intent.clone(),
+        intent_file: args.intent_file.clone(),
+        changes_file: args.changes_file.clone(),
+    }
+}
 /// Metadata-sidecar flags shared by `compare`, `identity` and `view`.
 #[derive(clap::Args, Clone, Default)]
 #[command(next_help_heading = "Metadata sidecars")]
@@ -1801,21 +1808,24 @@ fn dispatch(command: Command, record_absolute_paths: bool) -> Result<u8, CliErro
             if let Some(l) = labels {
                 cfg.labels = parse_labels(&l)?;
             }
-            let visual = local_cmd::visual_intent(&intent)?;
-            if let Some((declaration, source)) = &visual {
-                saccade_core::intent::apply_effects(declaration, source, &mut cfg)?;
+            let intent_options = intent_options(&intent);
+            let completed =
+                saccade_core::workflows::run_compare(&saccade_core::workflows::CompareRun {
+                    baseline: &baseline_dir,
+                    capture: &capture_dir,
+                    out: &out,
+                    config: &cfg,
+                    policy: signed_approval::policy(),
+                    approved: false,
+                    verified: verified.as_ref(),
+                    junit: junit.as_deref(),
+                    intent: &intent_options,
+                })?;
+            for warning in &completed.warnings {
+                eprintln!("{warning}");
             }
-            let report =
-                signed_approval::run(&baseline_dir, &capture_dir, &out, &cfg, verified.as_ref())?;
-            if let Some(path) = junit {
-                saccade_core::ergonomics::junit(&report, &path)?;
-            }
-            local_cmd::persist_case(
-                &report,
-                &out.join(saccade_core::report::REPORT_FILE_NAME),
-                &intent,
-            )?;
-            let intent_mismatch = local_cmd::verify_visual_intent(&report, &out, visual.as_ref())?;
+            let report = completed.report;
+            let intent_mismatch = completed.intent_mismatch;
             // Hash-bound route component preserves the ordinary immutable report contract.
             if general.question.is_some() {
                 let choice = capability_cmd::record_render(&report, &out, &general)?;
@@ -1883,20 +1893,24 @@ fn dispatch(command: Command, record_absolute_paths: bool) -> Result<u8, CliErro
             if let Some(l) = labels {
                 cfg.labels = parse_labels(&l)?;
             }
-            let visual = local_cmd::visual_intent(&intent)?;
-            if let Some((declaration, source)) = &visual {
-                saccade_core::intent::apply_effects(declaration, source, &mut cfg)?;
+            let intent_options = intent_options(&intent);
+            let completed =
+                saccade_core::workflows::run_prove(&saccade_core::workflows::CompareRun {
+                    baseline: &parent_dir,
+                    capture: &candidate_dir,
+                    out: &out,
+                    config: &cfg,
+                    policy: signed_approval::policy(),
+                    approved: false,
+                    verified: None,
+                    junit: junit.as_deref(),
+                    intent: &intent_options,
+                })?;
+            for warning in &completed.warnings {
+                eprintln!("{warning}");
             }
-            let report = signed_approval::run(&parent_dir, &candidate_dir, &out, &cfg, None)?;
-            if let Some(path) = junit {
-                saccade_core::ergonomics::junit(&report, &path)?;
-            }
-            local_cmd::persist_case(
-                &report,
-                &out.join(saccade_core::report::REPORT_FILE_NAME),
-                &intent,
-            )?;
-            let intent_mismatch = local_cmd::verify_visual_intent(&report, &out, visual.as_ref())?;
+            let report = completed.report;
+            let intent_mismatch = completed.intent_mismatch;
             emit_run(&report, &out, json, record_absolute_paths)?;
             Ok(u8::from(report.is_regression() || intent_mismatch))
         }
@@ -2509,163 +2523,7 @@ fn parse_contract<T: serde::de::DeserializeOwned>(
     bytes: &[u8],
     schema: &str,
 ) -> Result<T, CliError> {
-    let value: serde_json::Value = serde_json::from_slice(bytes)?;
-    if let Some(actual) = value.get("schema").and_then(|v| v.as_str())
-        && saccade_core::report_links::original_schema(actual) != schema
-        && !(schema == saccade_core::wave7::watermark::WATERMARK_SCHEMA
-            && saccade_core::report_links::original_schema(actual) == "saccade-watermark.v1")
-        && !(schema == "saccade-report.v1" && actual == "flipdiff-report.v1")
-    {
-        let prefix = schema
-            .rsplit_once('v')
-            .map(|(prefix, _)| format!("{prefix}v"))
-            .unwrap_or_else(|| schema.to_owned());
-        let supported = schema
-            .rsplit_once('v')
-            .and_then(|(_, v)| v.parse::<u32>().ok())
-            .unwrap_or(1);
-        if actual
-            .strip_prefix(prefix.as_str())
-            .and_then(|v| v.parse::<u32>().ok())
-            .is_some_and(|v| v > supported)
-        {
-            return Err(CliError::new(
-                "version_skew",
-                format!("written by {actual}; installed saccade supports up to {schema}, upgrade"),
-            ));
-        }
-        return Err(CliError::usage(format!(
-            "expected {schema}, found {actual}"
-        )));
-    }
-    reject_newer_nested_schemas(&value)?;
-    enum ParseFailure {
-        UnknownField(String),
-        Malformed(String),
-    }
-    fn strict<T: serde::de::DeserializeOwned>(bytes: &[u8]) -> Result<T, ParseFailure> {
-        let mut parser = serde_json::Deserializer::from_slice(bytes);
-        let mut ignored = None;
-        let parsed = serde_ignored::deserialize(&mut parser, |path| {
-            if ignored.is_none() {
-                ignored = Some(path.to_string());
-            }
-        })
-        .map_err(|e| {
-            let message = e.to_string();
-            if message.starts_with("unknown field `") {
-                ParseFailure::UnknownField(message)
-            } else {
-                ParseFailure::Malformed(message)
-            }
-        })?;
-        if let Some(path) = ignored {
-            return Err(ParseFailure::UnknownField(format!("unknown field {path}")));
-        }
-        Ok(parsed)
-    }
-    match strict(bytes) {
-        Ok(parsed) => Ok(parsed),
-        Err(mut first) => {
-            let legacy = saccade_core::report_links::legacy_view(&value);
-            if legacy != value {
-                // Only known linkage is projected away, and duplicate keys still
-                // reject. Original retained bytes remain the artifact-hash source.
-                let _: serde_json::Value = saccade_core::evidence::canonical::decode(bytes)?;
-                let projected = serde_json::to_vec(&legacy)?;
-                match strict(&projected) {
-                    Ok(parsed) => return Ok(parsed),
-                    Err(error) => first = error,
-                }
-            }
-            match first {
-                ParseFailure::UnknownField(first) => Err(CliError::new(
-                    "version_skew",
-                    format!(
-                        "written by a newer producer; installed saccade supports {schema}, upgrade: {first}"
-                    ),
-                )),
-                ParseFailure::Malformed(first) => Err(CliError::io(format!("JSON error: {first}"))),
-            }
-        }
-    }
-}
-
-fn reject_newer_nested_schemas(value: &serde_json::Value) -> Result<(), CliError> {
-    match value {
-        serde_json::Value::Object(fields) => {
-            if let Some(actual) = fields.get("schema").and_then(|v| v.as_str()) {
-                for prefix in [
-                    // wave7
-                    "saccade-model-registry.v",
-                    "saccade-model-status.v",
-                    "saccade-locate.v",
-                    "saccade-vision-observation.v",
-                    "saccade-learned-quality.v",
-                    "saccade-watermark.v",
-                    "saccade-faces.v",
-                    "saccade-crop-check.v",
-                    "saccade-provider-mapping.v",
-                    "saccade-report.v",
-                    "saccade-perf-diff.v",
-                    "saccade-noise.v",
-                    "saccade-history.v",
-                    "saccade-onset.v",
-                    "saccade-inventory.v",
-                    "saccade-inventory-report.v",
-                    "saccade-localized.v",
-                    "saccade-frozen-region.v",
-                    "saccade-dom-regions.v",
-                    "saccade-grounded.v",
-                    "saccade-quality-sweep.v",
-                    "saccade-quality-report.v",
-                    "saccade-region-models.v",
-                    "saccade-renderdoc-extract.v",
-                    "saccade-renderdoc-localization.v",
-                    "saccade-brand-source.v",
-                    "saccade-brand-review.v",
-                    "saccade-ui-source.v",
-                    "saccade-tesseract.v",
-                    "saccade-ui-review.v",
-                    "saccade-perf-plan.v",
-                    "saccade-perf-pairs.v",
-                    "saccade-vector-buffer.v",
-                    "saccade-motion-vectors.v",
-                    "saccade-motion-review.v",
-                    "saccade-asset-views.v",
-                    "saccade-asset-view-report.v",
-                ] {
-                    let supported = if prefix == "saccade-watermark.v" {
-                        3
-                    } else {
-                        1
-                    };
-                    if saccade_core::report_links::original_schema(actual)
-                        .strip_prefix(prefix)
-                        .and_then(|v| v.parse::<u32>().ok())
-                        .is_some_and(|v| v > supported)
-                    {
-                        return Err(CliError::new(
-                            "version_skew",
-                            format!(
-                                "written by {actual}; installed saccade supports up to {prefix}{supported}, upgrade"
-                            ),
-                        ));
-                    }
-                }
-            }
-            for child in fields.values() {
-                reject_newer_nested_schemas(child)?;
-            }
-        }
-        serde_json::Value::Array(items) => {
-            for child in items {
-                reject_newer_nested_schemas(child)?;
-            }
-        }
-        _ => {}
-    }
-    Ok(())
+    Ok(saccade_core::workflows::parse_contract(bytes, schema)?)
 }
 
 /// Writes `text` to stdout. A closed pipe (for example `| head`) is not an error.
@@ -3209,3 +3067,8 @@ mod document_ocr_cmd;
 #[cfg(feature = "assist")]
 mod advice_cmd;
 mod batch_cmd;
+
+#[cfg(test)]
+fn reject_newer_nested_schemas(value: &serde_json::Value) -> Result<(), CliError> {
+    Ok(saccade_core::workflows::validate_contract_versions(value)?)
+}

@@ -63,36 +63,17 @@ pub(crate) fn run(a: Args) -> Result<u8, CliError> {
             timeout_ms: a.timeout_ms,
         }
     };
-    if a.source.is_dir() {
-        let source = saccade_core::paths::canonicalize(&a.source)
-            .map_err(|e| CliError::io(e.to_string()))?;
-        let out = saccade_core::run::normalise_path(&a.out);
-        if out.starts_with(source) {
-            return Err(CliError::usage("batch output is inside an input directory"));
-        }
-    }
-    let inputs = batch::intake(&a.source, a.reference_dir.as_deref())?;
-    let rows = batch::run(
-        &std::env::current_exe().map_err(|e| CliError::io(e.to_string()))?,
-        &inputs,
-        &options,
-        &a.out,
-    )?;
-    let failed = rows.iter().any(|r| {
-        !matches!(
-            r["status"].as_str(),
-            Some("ok" | "duplicate-basename" | "skipped")
-        )
-    });
-    let mut counts = std::collections::BTreeMap::new();
-    for row in &rows {
-        *counts
-            .entry(row["status"].as_str().unwrap_or("partial"))
-            .or_insert(0usize) += 1;
-    }
-    crate::media_cmd::emit(
-        &serde_json::json!({"schema":batch::RESULT_SCHEMA,"rows":rows.len(),"counts":counts,"out":a.out,"manifest":a.out.join(saccade_core::manifest::MANIFEST_FILE)}),
-        a.json,
-    )?;
-    Ok(if failed { 4 } else { 0 })
+
+    let executable = std::env::current_exe().map_err(|e| CliError::io(e.to_string()))?;
+    let result =
+        saccade_core::workflows::batch::run_batch(&saccade_core::workflows::batch::BatchRun {
+            source: &a.source,
+            reference_dir: a.reference_dir.as_deref(),
+            out: &a.out,
+            options: &options,
+            executable: &executable,
+            policy: crate::signed_approval::policy(),
+        })?;
+    crate::media_cmd::emit(&result.value, a.json)?;
+    Ok(if result.failed { 4 } else { 0 })
 }
