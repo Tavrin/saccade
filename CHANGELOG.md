@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- Add required per-criterion automatic accessibility summaries with counts and worst
+  region references in JSON, text, MCP and five JUnit testcases per image. Measured
+  results determine image/run verdicts; unverified glyph completeness is a limitation.
+  PASS names its detected-region scope. Existing non-failure exit codes are retained.
+
 - Prevent strong ink from hiding weak components/colours, and measure each component
   against its local background. Thin strokes below threshold abstain only for WCAG source-colour verdicts;
   rendered legibility measures the displayed pixels and can FAIL.

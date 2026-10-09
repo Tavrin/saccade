@@ -259,9 +259,10 @@ No human region declaration is required. `--config FILE` retains existing
 any overlapping automatic candidate. Automatic results always carry
 `provenance: auto_detected`, detector identity, uncalibrated confidence and pixel
 boxes. `saccade-auto-a11y.v1.json`, text and HTML retain the full evidence and the
-existing six colour-vision simulation artifacts. CLI exit 1 means a measured FAIL;
-exit 0 is completed analysis, including WARN/UNMEASURABLE, and never coverage
-certification. Exit 2 means invalid input or an exhausted analysis budget.
+existing six colour-vision simulation artifacts. CLI exits: PASS 0, FAIL 1, WARN 0,
+UNMEASURABLE 0 (the existing completed-analysis codes), invalid input or exhausted
+analysis budget 2. Exit 0 alone does not establish measured PASS; inspect the
+summary or apply your CI policy to JUnit evidence.
 
 The pinned PaddleOCR detection model is discovered in the existing default model
 cache (override with `--model-cache DIR`) when the
@@ -293,11 +294,43 @@ separate the two verdicts and give each ratio. Missing pinned detection reports
 `next action: saccade models pull runtime and saccade models pull ocr`.
 Automatic size/sharpness/stroke proxy defects are WARN rather than a font-size or
 human-readability FAIL. Explicit declared pixel policies retain their FAIL checks.
-Missing-glyph shapes are WARN candidates; their absence is UNMEASURABLE coverage,
+Missing-glyph shapes are WARN candidates; their absence is NOT_VERIFIED coverage,
 never proof of complete fonts. CVD information loss remains a WARN candidate;
 pixels alone cannot establish whether colour conveys required information.
-Per-check PASS/FAIL/WARN/UNMEASURABLE are preserved in JSON. Unknown/warning JUnit
-cases are skipped, never successful measurement cases. Failures dominate the run.
+The required image `summary` reports `wcag_text_contrast` (1.4.3 or 1.4.6),
+`wcag_non_text_contrast` (1.4.11), `rendered_legibility`, `missing_glyphs`, and
+`colour_vision_loss`. Each has a status, counts and worst region reference into
+`automatic`, `declared_contrast` (the declared contrast array), or
+`colour_vision_findings` (the colour-vision findings array). NOT_APPLICABLE means
+there are no candidate UI regions; NOT_VERIFIED means the check cannot verify
+completeness. The text report leads with these criterion results; JSON and MCP
+carry the same summary. Declared contrast measurements are classified against the
+summary’s `--level` target using the declared size class; their original configured
+levels, thresholds and verdicts remain in the separate declared report.
+
+WCAG source-colour contrast asks how much the intended ink colour differs from
+its local background. Rendered contrast asks how much the visible pixels differ:
+anti-aliasing blends thin letters with the background. Thin anti-aliased text can
+therefore fail rendered legibility even when its source colour complies. For
+example, #767676 on white has source contrast about 4.54:1, but small thin letters
+can display much less contrast. A lower bound below the WCAG threshold cannot
+prove that the source colour fails, so WCAG contrast is UNMEASURABLE while the
+independent displayed-pixel legibility check can FAIL.
+
+Image and run verdicts consider measured criteria: FAIL dominates WARN, then PASS
+when some regions were measured, otherwise UNMEASURABLE. No detected text prevents
+PASS. Unknown/unverified checks remain limitations and do not erase a measured
+PASS. Every PASS is scoped to “detected regions; detection completeness unknown”.
+This is neither certification nor a claim that every region was detected.
+
+JUnit emits exactly five testcases per image, with the image as `classname` and
+criterion key as `name`. FAIL produces `<failure>`; WARN, UNMEASURABLE,
+NOT_VERIFIED and NOT_APPLICABLE produce `<skipped>` with the status and evidence.
+To gate CI only on WCAG text contrast, select `name="wcag_text_contrast"`; select
+`rendered_legibility` to gate displayed text independently. Treat selected skipped
+cases as insufficient evidence if your policy requires verified coverage. The
+CLI aggregate still includes all measured criteria; filtering JUnit does not
+change it.
 
 Analysis is bounded to 8,388,608 pixels and 8,192 edge components, with no automatic
 resampling. Fallback detection can miss tiny/short, rotated, touching/joined,

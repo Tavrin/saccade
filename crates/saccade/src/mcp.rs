@@ -2293,6 +2293,12 @@ impl Server {
                 let (structured, text) =
                     crate::precheck_mcp::call(&name, &mapped, &|key, path| self.resolve(key, path))
                         .ok_or_else(|| CliError::usage("unavailable precheck"))??;
+                let structured = if op == "a11y_auto" {
+                    let out = self.resolve("out", &require_str(args, "out")?)?;
+                    crate::auto_a11y_cmd::summary_result(&structured, &out)?
+                } else {
+                    structured
+                };
                 ToolOutput {
                     structured,
                     text,

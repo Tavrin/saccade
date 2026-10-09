@@ -72,14 +72,28 @@ pub(crate) fn run(args: Args) -> Result<u8, CliError> {
         report.junit(path, &inputs)?;
     }
     if a.json {
-        crate::local_cmd::print(
-            &crate::local_cmd::analysis_result(&serde_json::to_value(&report)?, &a.out)?,
-            true,
-        )?;
+        let value = summary_result(&serde_json::to_value(&report)?, &a.out)?;
+        crate::local_cmd::print(&value, true)?;
     } else {
         crate::emit(&report.text())?;
     }
     Ok(u8::from(
         report.verdict == saccade_a11y::auto::Verdict::Fail,
     ))
+}
+
+/// Common CLI/MCP transport: summary in data, full region evidence in the artifact.
+pub(crate) fn summary_result(
+    value: &serde_json::Value,
+    out: &std::path::Path,
+) -> Result<serde_json::Value, CliError> {
+    let mut result = crate::local_cmd::analysis_result(value, out)?;
+    result["data"] = serde_json::json!({
+        "verdict": value["verdict"], "scope": value["scope"],
+        "images": value["images"].as_array().into_iter().flatten().map(|image| serde_json::json!({
+            "name": image["name"], "verdict": image["verdict"], "summary": image["summary"],
+            "scope": image["scope"], "limitations": image["limitations"],
+        })).collect::<Vec<_>>()
+    });
+    Ok(result)
 }

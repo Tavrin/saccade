@@ -350,6 +350,42 @@ fn declarations_scale_glyphs_and_guards_preserve_honesty() {
         .is_err()
     );
     assert!(auto::fallback(&RgbImage::new(0, 2)).is_err());
+    // This thin-core AA PASS is only a lower bound: it cannot certify AAA or prove AAA FAIL.
+    let configured = tmp.path().join("configured.png");
+    scene(1, 2, 110, false).0.save(&configured).unwrap();
+    let aa = tmp.path().join("aa.toml");
+    std::fs::write(
+        &aa,
+        "[[region]]\nname='configured'\nkind='text'\nrect=[0.0,0.0,1.0,1.0]\n",
+    )
+    .unwrap();
+    let report = auto::run(
+        &configured,
+        &tmp.path().join("configured-out"),
+        &Options {
+            config: Some(aa),
+            level: Level::AAA,
+            ..Default::default()
+        },
+    )
+    .unwrap();
+    assert_eq!(
+        report.images[0].declared_and_colour_vision.contrast[0].verdict,
+        "PASS"
+    );
+    assert_eq!(
+        report.images[0].summary.wcag_text_contrast.status,
+        auto::Status::Unmeasurable
+    );
+    assert_eq!(
+        report.images[0]
+            .summary
+            .wcag_text_contrast
+            .success_criterion
+            .as_deref(),
+        Some("1.4.6")
+    );
+    assert_eq!(report.verdict, Verdict::Unmeasurable);
     let mut glyph = RgbImage::from_pixel(90, 45, Rgb([255; 3]));
     for y in 10..34 {
         for x in 15..29 {
@@ -597,4 +633,74 @@ fn thin_mixed_direction_ink_cannot_claim_a_lower_bound() {
         assert!(f.reasons.iter().any(|r| r
             == "displayed text is below the required contrast; source colour not determinable"));
     }
+}
+
+#[test]
+fn measured_criterion_summary_and_junit_scope() {
+    use auto::Status;
+    let tmp = tempfile::tempdir().unwrap();
+    for (size, expected) in [(1, Verdict::Warn), (2, Verdict::Pass)] {
+        let (im, _) = scene(1, size, 0, false);
+        let input = tmp.path().join(format!("black-{size}.png"));
+        im.save(&input).unwrap();
+        let report = auto::run(
+            &input,
+            &tmp.path().join(format!("out-{size}")),
+            &Options::default(),
+        )
+        .unwrap();
+        let image = &report.images[0];
+        assert_eq!(image.verdict, expected, "{}", report.text());
+        assert_eq!(report.verdict, expected);
+        assert_eq!(image.summary.wcag_text_contrast.status, Status::Pass);
+        assert!(image.summary.wcag_text_contrast.counts.pass > 0);
+        assert!(image.summary.wcag_text_contrast.worst_region.is_some());
+        assert_eq!(image.summary.missing_glyphs.status, Status::NotVerified);
+        assert_eq!(
+            image.summary.wcag_non_text_contrast.status,
+            Status::NotApplicable
+        );
+        assert_eq!(
+            image.scope,
+            "detected regions; detection completeness unknown"
+        );
+        let junit = tmp.path().join(format!("{size}.xml"));
+        report.junit(&junit, &[&input]).unwrap();
+        let xml = std::fs::read_to_string(junit).unwrap();
+        assert_eq!(xml.matches("<testcase ").count(), 5);
+        assert!(xml.contains("name=\"wcag_text_contrast\""));
+        assert!(xml.contains("NOT_VERIFIED"));
+    }
+    let mixed = tmp.path().join("mixed");
+    std::fs::create_dir(&mixed).unwrap();
+    std::fs::copy(tmp.path().join("black-2.png"), mixed.join("pass.png")).unwrap();
+    RgbImage::from_pixel(80, 40, Rgb([255; 3]))
+        .save(mixed.join("blank.png"))
+        .unwrap();
+    let report = auto::run(&mixed, &tmp.path().join("mixed-pass"), &Options::default()).unwrap();
+    assert_eq!(report.verdict, Verdict::Pass);
+    assert!(
+        report
+            .images
+            .iter()
+            .any(|i| i.verdict == Verdict::Unmeasurable)
+    );
+    std::fs::copy(tmp.path().join("black-1.png"), mixed.join("warn.png")).unwrap();
+    let report = auto::run(&mixed, &tmp.path().join("mixed-warn"), &Options::default()).unwrap();
+    assert_eq!(report.verdict, Verdict::Warn);
+    let mut im = RgbImage::from_pixel(80, 40, Rgb([255; 3]));
+    for x in [12, 28, 44] {
+        for y in 10..24 {
+            im.put_pixel(x, y, Rgb([170; 3]));
+        }
+    }
+    let input = tmp.path().join("grey.png");
+    im.save(&input).unwrap();
+    let report = auto::run(&input, &tmp.path().join("grey-out"), &Options::default()).unwrap();
+    let summary = &report.images[0].summary;
+    assert_eq!(summary.wcag_text_contrast.status, Status::Unmeasurable);
+    assert_eq!(summary.rendered_legibility.status, Status::Fail);
+    assert_eq!(report.verdict, Verdict::Fail);
+    assert!(report.text().contains("lower bound"));
+    assert!(report.text().contains("displayed"));
 }

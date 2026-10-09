@@ -267,6 +267,12 @@ fn automatic_cli_directory_schema_junit_and_mcp_mirror() {
     schema(&value, "saccade-auto-a11y.v1.schema.json");
     assert_eq!(value["verdict"], "UNMEASURABLE");
     assert_eq!(value["level"], "AAA");
+    let cli_json: Value = serde_json::from_slice(&result.stdout).unwrap();
+    assert_eq!(
+        cli_json["data"]["images"][0]["summary"],
+        value["images"][0]["summary"]
+    );
+
     assert!(
         value["images"][0]["text_detection"]
             .as_str()
@@ -316,10 +322,65 @@ fn automatic_cli_directory_schema_junit_and_mcp_mirror() {
     .unwrap();
     schema(&artifact, "saccade-auto-a11y.v1.schema.json");
     assert_eq!(artifact, value);
+    assert_eq!(
+        replies[0]["result"]["structuredContent"]["data"]["images"][0]["summary"],
+        value["images"][0]["summary"]
+    );
+
     let doc: Value =
         serde_json::from_str(saccade_core::schema_catalog::get("saccade-auto-a11y.v1").unwrap())
             .unwrap();
     let validator = jsonschema::validator_for(&doc).unwrap();
+    // Establish a valid measured PASS before testing independent summary contradictions.
+    let clean = root.join("clean.png");
+    image::RgbImage::from_fn(100, 50, |x, y| {
+        image::Rgb(
+            if (12..26).contains(&y)
+                && [20, 40, 60]
+                    .iter()
+                    .any(|left| (*left..*left + 2).contains(&x))
+            {
+                [0; 3]
+            } else {
+                [255; 3]
+            },
+        )
+    })
+    .save(&clean)
+    .unwrap();
+    let clean_out = root.join("clean-out");
+    let clean_result = cli(&[
+        "a11y",
+        "auto",
+        clean.to_str().unwrap(),
+        "--out",
+        clean_out.to_str().unwrap(),
+    ]);
+    assert_eq!(clean_result.status.code(), Some(0));
+    let pass: Value = serde_json::from_slice(
+        &std::fs::read(clean_out.join("saccade-auto-a11y.v1.json")).unwrap(),
+    )
+    .unwrap();
+    assert_eq!(pass["verdict"], "PASS", "{pass}");
+    assert!(validator.is_valid(&pass));
+    for criterion in [
+        "wcag_text_contrast",
+        "wcag_non_text_contrast",
+        "rendered_legibility",
+    ] {
+        for status in ["FAIL", "WARN"] {
+            let mut contradiction = pass.clone();
+            contradiction["images"][0]["summary"][criterion]["status"] = json!(status);
+            contradiction["images"][0]["summary"][criterion]["counts"][status.to_lowercase()] =
+                json!(1);
+            contradiction["images"][0]["summary"][criterion]["worst_region"] =
+                json!({"source":"automatic","index":0});
+            assert!(
+                !validator.is_valid(&contradiction),
+                "image PASS with a measured {criterion} {status}"
+            );
+        }
+    }
     let mut impossible = value.clone();
     impossible["verdict"] = json!("PASS");
     impossible["images"] = json!([]);
@@ -333,5 +394,45 @@ fn automatic_cli_directory_schema_junit_and_mcp_mirror() {
     assert!(!validator.is_valid(&impossible));
     impossible = value.clone();
     impossible["images"][1]["automatic"][0]["region"]["rect_px"][2] = json!(0);
+    assert!(!validator.is_valid(&impossible));
+    for criterion in [
+        "wcag_text_contrast",
+        "wcag_non_text_contrast",
+        "rendered_legibility",
+        "missing_glyphs",
+        "colour_vision_loss",
+    ] {
+        impossible = value.clone();
+        impossible["images"][0]["summary"][criterion]["status"] = json!("PASS");
+        assert!(
+            !validator.is_valid(&impossible),
+            "PASS without measured regions: {criterion}"
+        );
+        for status in ["FAIL", "WARN"] {
+            impossible = value.clone();
+            impossible["images"][0]["verdict"] = json!("PASS");
+            impossible["images"][0]["summary"][criterion]["status"] = json!(status);
+            impossible["images"][0]["summary"][criterion]["counts"][status.to_lowercase()] =
+                json!(1);
+            impossible["images"][0]["summary"][criterion]["worst_region"] =
+                json!({"source":"automatic","index":0});
+            assert!(
+                !validator.is_valid(&impossible),
+                "image PASS with {criterion} {status}"
+            );
+        }
+    }
+    // Positive invented counts must not stand in for actual measured evidence.
+    impossible = value.clone();
+    impossible["images"][0]["summary"]["wcag_text_contrast"]["status"] = json!("PASS");
+    impossible["images"][0]["summary"]["wcag_text_contrast"]["counts"]["pass"] = json!(1);
+    impossible["images"][0]["summary"]["wcag_text_contrast"]["worst_region"] =
+        json!({"source":"automatic","index":0});
+    assert!(!validator.is_valid(&impossible));
+    impossible = value.clone();
+    impossible["images"][0]
+        .as_object_mut()
+        .unwrap()
+        .remove("summary");
     assert!(!validator.is_valid(&impossible));
 }

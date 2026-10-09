@@ -629,6 +629,18 @@
               "proposals"
             ],
             "additionalProperties": false
+          },
+          "summary": {
+            "$ref": "#/$defs/Summary"
+          },
+          "scope": {
+            "const": "detected regions; detection completeness unknown"
+          },
+          "limitations": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
           }
         },
         "required": [
@@ -637,7 +649,10 @@
           "detectors",
           "text_detection",
           "automatic",
-          "declared_and_colour_vision"
+          "declared_and_colour_vision",
+          "summary",
+          "scope",
+          "limitations"
         ],
         "allOf": [
           {
@@ -652,16 +667,139 @@
               ]
             },
             "then": {
-              "anyOf": [
+              "allOf": [
                 {
                   "properties": {
+                    "summary": {
+                      "anyOf": [
+                        {
+                          "properties": {
+                            "wcag_text_contrast": {
+                              "properties": {
+                                "status": {
+                                  "const": "PASS"
+                                }
+                              }
+                            }
+                          }
+                        },
+                        {
+                          "properties": {
+                            "wcag_non_text_contrast": {
+                              "properties": {
+                                "status": {
+                                  "const": "PASS"
+                                }
+                              }
+                            }
+                          }
+                        },
+                        {
+                          "properties": {
+                            "rendered_legibility": {
+                              "properties": {
+                                "status": {
+                                  "const": "PASS"
+                                }
+                              }
+                            }
+                          }
+                        },
+                        {
+                          "properties": {
+                            "missing_glyphs": {
+                              "properties": {
+                                "status": {
+                                  "const": "PASS"
+                                }
+                              }
+                            }
+                          }
+                        },
+                        {
+                          "properties": {
+                            "colour_vision_loss": {
+                              "properties": {
+                                "status": {
+                                  "const": "PASS"
+                                }
+                              }
+                            }
+                          }
+                        }
+                      ]
+                    }
+                  }
+                },
+                {
+                  "properties": {
+                    "summary": {
+                      "properties": {
+                        "wcag_text_contrast": {
+                          "properties": {
+                            "status": {
+                              "not": {
+                                "enum": [
+                                  "FAIL",
+                                  "WARN"
+                                ]
+                              }
+                            }
+                          }
+                        },
+                        "wcag_non_text_contrast": {
+                          "properties": {
+                            "status": {
+                              "not": {
+                                "enum": [
+                                  "FAIL",
+                                  "WARN"
+                                ]
+                              }
+                            }
+                          }
+                        },
+                        "rendered_legibility": {
+                          "properties": {
+                            "status": {
+                              "not": {
+                                "enum": [
+                                  "FAIL",
+                                  "WARN"
+                                ]
+                              }
+                            }
+                          }
+                        },
+                        "missing_glyphs": {
+                          "properties": {
+                            "status": {
+                              "not": {
+                                "enum": [
+                                  "FAIL",
+                                  "WARN"
+                                ]
+                              }
+                            }
+                          }
+                        },
+                        "colour_vision_loss": {
+                          "properties": {
+                            "status": {
+                              "not": {
+                                "enum": [
+                                  "FAIL",
+                                  "WARN"
+                                ]
+                              }
+                            }
+                          }
+                        }
+                      }
+                    },
                     "automatic": {
-                      "minItems": 1,
                       "contains": {
                         "properties": {
-                          "verdict": {
-                            "const": "PASS"
-                          },
                           "region": {
                             "properties": {
                               "kind": {
@@ -671,8 +809,310 @@
                           }
                         },
                         "required": [
-                          "verdict",
                           "region"
+                        ]
+                      }
+                    }
+                  }
+                }
+              ]
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "verdict": {
+                  "const": "FAIL"
+                }
+              },
+              "required": [
+                "verdict"
+              ]
+            },
+            "then": {
+              "properties": {
+                "summary": {
+                  "anyOf": [
+                    {
+                      "properties": {
+                        "wcag_text_contrast": {
+                          "properties": {
+                            "status": {
+                              "const": "FAIL"
+                            }
+                          }
+                        }
+                      }
+                    },
+                    {
+                      "properties": {
+                        "wcag_non_text_contrast": {
+                          "properties": {
+                            "status": {
+                              "const": "FAIL"
+                            }
+                          }
+                        }
+                      }
+                    },
+                    {
+                      "properties": {
+                        "rendered_legibility": {
+                          "properties": {
+                            "status": {
+                              "const": "FAIL"
+                            }
+                          }
+                        }
+                      }
+                    },
+                    {
+                      "properties": {
+                        "missing_glyphs": {
+                          "properties": {
+                            "status": {
+                              "const": "FAIL"
+                            }
+                          }
+                        }
+                      }
+                    },
+                    {
+                      "properties": {
+                        "colour_vision_loss": {
+                          "properties": {
+                            "status": {
+                              "const": "FAIL"
+                            }
+                          }
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "verdict": {
+                  "const": "WARN"
+                }
+              },
+              "required": [
+                "verdict"
+              ]
+            },
+            "then": {
+              "allOf": [
+                {
+                  "properties": {
+                    "summary": {
+                      "anyOf": [
+                        {
+                          "properties": {
+                            "wcag_text_contrast": {
+                              "properties": {
+                                "status": {
+                                  "const": "WARN"
+                                }
+                              }
+                            }
+                          }
+                        },
+                        {
+                          "properties": {
+                            "wcag_non_text_contrast": {
+                              "properties": {
+                                "status": {
+                                  "const": "WARN"
+                                }
+                              }
+                            }
+                          }
+                        },
+                        {
+                          "properties": {
+                            "rendered_legibility": {
+                              "properties": {
+                                "status": {
+                                  "const": "WARN"
+                                }
+                              }
+                            }
+                          }
+                        },
+                        {
+                          "properties": {
+                            "missing_glyphs": {
+                              "properties": {
+                                "status": {
+                                  "const": "WARN"
+                                }
+                              }
+                            }
+                          }
+                        },
+                        {
+                          "properties": {
+                            "colour_vision_loss": {
+                              "properties": {
+                                "status": {
+                                  "const": "WARN"
+                                }
+                              }
+                            }
+                          }
+                        }
+                      ]
+                    }
+                  }
+                },
+                {
+                  "properties": {
+                    "summary": {
+                      "properties": {
+                        "colour_vision_loss": {
+                          "properties": {
+                            "status": {
+                              "not": {
+                                "const": "FAIL"
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              ]
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "verdict": {
+                  "const": "UNMEASURABLE"
+                }
+              },
+              "required": [
+                "verdict"
+              ]
+            },
+            "then": {
+              "properties": {
+                "summary": {
+                  "properties": {
+                    "wcag_text_contrast": {
+                      "properties": {
+                        "status": {
+                          "not": {
+                            "enum": [
+                              "FAIL",
+                              "WARN"
+                            ]
+                          }
+                        }
+                      }
+                    },
+                    "wcag_non_text_contrast": {
+                      "properties": {
+                        "status": {
+                          "not": {
+                            "enum": [
+                              "FAIL",
+                              "WARN"
+                            ]
+                          }
+                        }
+                      }
+                    },
+                    "rendered_legibility": {
+                      "properties": {
+                        "status": {
+                          "not": {
+                            "enum": [
+                              "FAIL",
+                              "WARN"
+                            ]
+                          }
+                        }
+                      }
+                    },
+                    "missing_glyphs": {
+                      "properties": {
+                        "status": {
+                          "not": {
+                            "enum": [
+                              "FAIL",
+                              "WARN"
+                            ]
+                          }
+                        }
+                      }
+                    },
+                    "colour_vision_loss": {
+                      "properties": {
+                        "status": {
+                          "not": {
+                            "enum": [
+                              "FAIL",
+                              "WARN"
+                            ]
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "summary": {
+                  "properties": {
+                    "wcag_text_contrast": {
+                      "properties": {
+                        "status": {
+                          "const": "PASS"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "then": {
+              "anyOf": [
+                {
+                  "properties": {
+                    "automatic": {
+                      "contains": {
+                        "properties": {
+                          "region": {
+                            "properties": {
+                              "kind": {
+                                "const": "text"
+                              },
+                              "overridden_by_declared": {
+                                "const": false
+                              }
+                            }
+                          },
+                          "verdict": {
+                            "const": "PASS"
+                          },
+                          "ratio": {
+                            "type": "number"
+                          }
+                        },
+                        "required": [
+                          "region",
+                          "verdict",
+                          "ratio"
                         ]
                       }
                     }
@@ -680,43 +1120,20 @@
                 },
                 {
                   "properties": {
-                    "automatic": {
-                      "minItems": 1,
-                      "contains": {
-                        "properties": {
-                          "region": {
-                            "properties": {
-                              "kind": {
-                                "const": "text"
-                              }
-                            }
-                          }
-                        },
-                        "required": [
-                          "region"
-                        ]
-                      }
-                    },
                     "declared_and_colour_vision": {
                       "properties": {
                         "contrast": {
-                          "minItems": 1,
                           "contains": {
                             "properties": {
                               "kind": {
                                 "const": "text"
                               },
-                              "verdict": {
-                                "const": "PASS"
-                              },
                               "ratio": {
-                                "type": "number",
-                                "minimum": 1
+                                "type": "number"
                               }
                             },
                             "required": [
                               "kind",
-                              "verdict",
                               "ratio"
                             ]
                           }
@@ -727,9 +1144,152 @@
                 }
               ]
             }
+          },
+          {
+            "if": {
+              "properties": {
+                "summary": {
+                  "properties": {
+                    "wcag_non_text_contrast": {
+                      "properties": {
+                        "status": {
+                          "const": "PASS"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "then": {
+              "anyOf": [
+                {
+                  "properties": {
+                    "automatic": {
+                      "contains": {
+                        "properties": {
+                          "region": {
+                            "properties": {
+                              "kind": {
+                                "const": "ui"
+                              },
+                              "overridden_by_declared": {
+                                "const": false
+                              }
+                            }
+                          },
+                          "verdict": {
+                            "const": "PASS"
+                          },
+                          "ratio": {
+                            "type": "number"
+                          }
+                        },
+                        "required": [
+                          "region",
+                          "verdict",
+                          "ratio"
+                        ]
+                      }
+                    }
+                  }
+                },
+                {
+                  "properties": {
+                    "declared_and_colour_vision": {
+                      "properties": {
+                        "contrast": {
+                          "contains": {
+                            "properties": {
+                              "kind": {
+                                "const": "ui"
+                              },
+                              "ratio": {
+                                "type": "number"
+                              }
+                            },
+                            "required": [
+                              "kind",
+                              "ratio"
+                            ]
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              ]
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "summary": {
+                  "properties": {
+                    "rendered_legibility": {
+                      "properties": {
+                        "status": {
+                          "const": "PASS"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "then": {
+              "anyOf": [
+                {
+                  "properties": {
+                    "automatic": {
+                      "contains": {
+                        "properties": {
+                          "region": {
+                            "properties": {
+                              "kind": {
+                                "const": "text"
+                              },
+                              "overridden_by_declared": {
+                                "const": false
+                              }
+                            }
+                          },
+                          "legibility_verdict": {
+                            "const": "PASS"
+                          },
+                          "legibility": {
+                            "type": "object",
+                            "properties": {
+                              "contrast": {
+                                "type": "number"
+                              },
+                              "state": {
+                                "const": "legible"
+                              }
+                            },
+                            "required": [
+                              "contrast",
+                              "state"
+                            ]
+                          }
+                        },
+                        "required": [
+                          "region",
+                          "legibility_verdict",
+                          "legibility"
+                        ]
+                      }
+                    }
+                  }
+                }
+              ]
+            }
           }
         ]
       }
+    },
+    "scope": {
+      "const": "detected regions; detection completeness unknown"
     }
   },
   "required": [
@@ -739,7 +1299,8 @@
     "level",
     "px_per_pt",
     "assumptions",
-    "images"
+    "images",
+    "scope"
   ],
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "saccade-auto-a11y.v1",
@@ -990,6 +1551,339 @@
         "confidence"
       ],
       "type": "object"
+    },
+    "CriterionSummary": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "status": {
+          "enum": [
+            "PASS",
+            "FAIL",
+            "WARN",
+            "UNMEASURABLE",
+            "NOT_VERIFIED",
+            "NOT_APPLICABLE"
+          ]
+        },
+        "counts": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "pass": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "fail": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "warn": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "unmeasurable": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "not_verified": {
+              "type": "integer",
+              "minimum": 0
+            }
+          },
+          "required": [
+            "pass",
+            "fail",
+            "warn",
+            "unmeasurable",
+            "not_verified"
+          ]
+        },
+        "worst_region": {
+          "anyOf": [
+            {
+              "type": "null"
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "source": {
+                  "enum": [
+                    "automatic",
+                    "declared_contrast",
+                    "colour_vision_findings"
+                  ]
+                },
+                "index": {
+                  "type": "integer",
+                  "minimum": 0
+                }
+              },
+              "required": [
+                "source",
+                "index"
+              ]
+            }
+          ]
+        },
+        "detail": {
+          "type": "string"
+        },
+        "success_criterion": {
+          "enum": [
+            null,
+            "1.4.3",
+            "1.4.6",
+            "1.4.11"
+          ]
+        }
+      },
+      "required": [
+        "status",
+        "counts",
+        "worst_region",
+        "detail",
+        "success_criterion"
+      ],
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "status": {
+                "const": "PASS"
+              }
+            },
+            "required": [
+              "status"
+            ]
+          },
+          "then": {
+            "properties": {
+              "counts": {
+                "properties": {
+                  "pass": {
+                    "minimum": 1
+                  },
+                  "fail": {
+                    "const": 0
+                  },
+                  "warn": {
+                    "const": 0
+                  }
+                }
+              },
+              "worst_region": {
+                "type": "object"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "status": {
+                "const": "FAIL"
+              }
+            },
+            "required": [
+              "status"
+            ]
+          },
+          "then": {
+            "properties": {
+              "counts": {
+                "properties": {
+                  "fail": {
+                    "minimum": 1
+                  }
+                }
+              },
+              "worst_region": {
+                "type": "object"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "status": {
+                "const": "WARN"
+              }
+            },
+            "required": [
+              "status"
+            ]
+          },
+          "then": {
+            "properties": {
+              "counts": {
+                "properties": {
+                  "warn": {
+                    "minimum": 1
+                  },
+                  "fail": {
+                    "const": 0
+                  }
+                }
+              },
+              "worst_region": {
+                "type": "object"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "status": {
+                "const": "UNMEASURABLE"
+              }
+            },
+            "required": [
+              "status"
+            ]
+          },
+          "then": {
+            "properties": {
+              "counts": {
+                "properties": {
+                  "pass": {
+                    "const": 0
+                  },
+                  "fail": {
+                    "const": 0
+                  },
+                  "warn": {
+                    "const": 0
+                  }
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "status": {
+                "const": "NOT_VERIFIED"
+              }
+            },
+            "required": [
+              "status"
+            ]
+          },
+          "then": {
+            "properties": {
+              "counts": {
+                "properties": {
+                  "pass": {
+                    "const": 0
+                  },
+                  "fail": {
+                    "const": 0
+                  },
+                  "warn": {
+                    "const": 0
+                  }
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "status": {
+                "const": "NOT_APPLICABLE"
+              }
+            },
+            "required": [
+              "status"
+            ]
+          },
+          "then": {
+            "properties": {
+              "counts": {
+                "properties": {
+                  "pass": {
+                    "const": 0
+                  },
+                  "fail": {
+                    "const": 0
+                  },
+                  "warn": {
+                    "const": 0
+                  },
+                  "unmeasurable": {
+                    "const": 0
+                  },
+                  "not_verified": {
+                    "const": 0
+                  }
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    "Summary": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "wcag_text_contrast": {
+          "$ref": "#/$defs/CriterionSummary"
+        },
+        "wcag_non_text_contrast": {
+          "$ref": "#/$defs/CriterionSummary"
+        },
+        "rendered_legibility": {
+          "$ref": "#/$defs/CriterionSummary"
+        },
+        "missing_glyphs": {
+          "allOf": [
+            {
+              "$ref": "#/$defs/CriterionSummary"
+            },
+            {
+              "properties": {
+                "status": {
+                  "enum": [
+                    "WARN",
+                    "NOT_VERIFIED"
+                  ]
+                }
+              }
+            }
+          ]
+        },
+        "colour_vision_loss": {
+          "allOf": [
+            {
+              "$ref": "#/$defs/CriterionSummary"
+            },
+            {
+              "properties": {
+                "status": {
+                  "enum": [
+                    "WARN",
+                    "NOT_VERIFIED"
+                  ]
+                }
+              }
+            }
+          ]
+        }
+      },
+      "required": [
+        "wcag_text_contrast",
+        "wcag_non_text_contrast",
+        "rendered_legibility",
+        "missing_glyphs",
+        "colour_vision_loss"
+      ]
     }
   },
   "allOf": [
@@ -1008,10 +1902,113 @@
         "properties": {
           "images": {
             "minItems": 1,
-            "items": {
+            "contains": {
               "properties": {
                 "verdict": {
                   "const": "PASS"
+                }
+              },
+              "required": [
+                "verdict"
+              ]
+            },
+            "items": {
+              "properties": {
+                "verdict": {
+                  "enum": [
+                    "PASS",
+                    "UNMEASURABLE"
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "verdict": {
+            "const": "FAIL"
+          }
+        },
+        "required": [
+          "verdict"
+        ]
+      },
+      "then": {
+        "properties": {
+          "images": {
+            "contains": {
+              "properties": {
+                "verdict": {
+                  "const": "FAIL"
+                }
+              },
+              "required": [
+                "verdict"
+              ]
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "verdict": {
+            "const": "WARN"
+          }
+        },
+        "required": [
+          "verdict"
+        ]
+      },
+      "then": {
+        "properties": {
+          "images": {
+            "contains": {
+              "properties": {
+                "verdict": {
+                  "const": "WARN"
+                }
+              },
+              "required": [
+                "verdict"
+              ]
+            },
+            "items": {
+              "properties": {
+                "verdict": {
+                  "not": {
+                    "const": "FAIL"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "verdict": {
+            "const": "UNMEASURABLE"
+          }
+        },
+        "required": [
+          "verdict"
+        ]
+      },
+      "then": {
+        "properties": {
+          "images": {
+            "items": {
+              "properties": {
+                "verdict": {
+                  "const": "UNMEASURABLE"
                 }
               }
             }

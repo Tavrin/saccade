@@ -132,6 +132,324 @@ pub struct Finding {
     /// Measurement assumptions and abstention reasons.
     pub reasons: Vec<String>,
 }
+/// Criterion states keep unsupported checks separate from measured verdicts.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
+pub enum Status {
+    /// Measured regions meet the criterion.
+    Pass,
+    /// A measured region fails.
+    Fail,
+    /// A measured heuristic needs review.
+    Warn,
+    /// Applicable regions cannot be measured.
+    Unmeasurable,
+    /// The available check cannot verify this property.
+    NotVerified,
+    /// No applicable regions.
+    NotApplicable,
+}
+impl std::fmt::Display for Status {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(match self {
+            Self::Pass => "PASS",
+            Self::Fail => "FAIL",
+            Self::Warn => "WARN",
+            Self::Unmeasurable => "UNMEASURABLE",
+            Self::NotVerified => "NOT_VERIFIED",
+            Self::NotApplicable => "NOT_APPLICABLE",
+        })
+    }
+}
+impl From<Verdict> for Status {
+    fn from(v: Verdict) -> Self {
+        match v {
+            Verdict::Pass => Self::Pass,
+            Verdict::Fail => Self::Fail,
+            Verdict::Warn => Self::Warn,
+            Verdict::Unmeasurable => Self::Unmeasurable,
+        }
+    }
+}
+/// Counts of independent region observations for a criterion.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct Counts {
+    /// Measured passing observations.
+    pub pass: usize,
+    /// Measured failing observations.
+    pub fail: usize,
+    /// Warning observations.
+    pub warn: usize,
+    /// Applicable but unmeasurable observations.
+    pub unmeasurable: usize,
+    /// Observations with verification unavailable.
+    pub not_verified: usize,
+}
+/// Stable reference into an image's evidence arrays.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RegionRef {
+    /// automatic, declared_contrast, or colour_vision_findings.
+    pub source: String,
+    /// Zero-based observation index in that array.
+    pub index: usize,
+}
+/// Aggregate evidence for one criterion, with the worst observation.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CriterionSummary {
+    /// Aggregate criterion status.
+    pub status: Status,
+    /// Region observation counts.
+    pub counts: Counts,
+    /// Reference to the worst observation, absent if no regions apply.
+    pub worst_region: Option<RegionRef>,
+    /// Human-readable worst measurement or limitation.
+    pub detail: String,
+    /// WCAG success criterion when applicable.
+    pub success_criterion: Option<String>,
+    #[serde(skip)]
+    worst_score: Option<f64>,
+}
+impl CriterionSummary {
+    fn empty(status: Status, detail: &str, sc: Option<&str>) -> Self {
+        Self {
+            status,
+            counts: Counts::default(),
+            worst_region: None,
+            detail: detail.into(),
+            success_criterion: sc.map(str::to_owned),
+            worst_score: None,
+        }
+    }
+    fn observe(
+        &mut self,
+        status: Status,
+        source: &str,
+        index: usize,
+        detail: String,
+        score: Option<f64>,
+    ) {
+        let rank = |s| match s {
+            Status::Fail => 5,
+            Status::Warn => 4,
+            Status::Unmeasurable => 2,
+            Status::NotVerified => 1,
+            Status::Pass => 3,
+            Status::NotApplicable => 0,
+        };
+        let first = self.worst_region.is_none();
+        let replace = first
+            || rank(status) > rank(self.status)
+            || (status == self.status
+                && score.is_some_and(|v| self.worst_score.is_some_and(|old| v < old)));
+        match status {
+            Status::Pass => self.counts.pass += 1,
+            Status::Fail => self.counts.fail += 1,
+            Status::Warn => self.counts.warn += 1,
+            Status::Unmeasurable => self.counts.unmeasurable += 1,
+            Status::NotVerified => self.counts.not_verified += 1,
+            Status::NotApplicable => {}
+        }
+        if replace {
+            self.worst_score = score;
+            self.status = status;
+            self.worst_region = Some(RegionRef {
+                source: source.into(),
+                index,
+            });
+            self.detail = detail;
+        }
+        // Unknown regions remain counted and limited, but cannot erase measured PASS.
+        if self.counts.fail > 0 {
+            self.status = Status::Fail;
+        } else if self.counts.warn > 0 {
+            self.status = Status::Warn;
+        } else if self.counts.pass > 0 {
+            self.status = Status::Pass;
+        }
+    }
+}
+/// Required per-image criterion summary.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Summary {
+    /// SC 1.4.3 or 1.4.6 source-colour contrast.
+    pub wcag_text_contrast: CriterionSummary,
+    /// SC 1.4.11 candidate boundary contrast.
+    pub wcag_non_text_contrast: CriterionSummary,
+    /// Displayed contrast, size, stroke and sharpness checks.
+    pub rendered_legibility: CriterionSummary,
+    /// Glyph-shaped candidates; completeness remains unverified.
+    pub missing_glyphs: CriterionSummary,
+    /// Colour-vision loss candidates; semantic coverage remains unverified.
+    pub colour_vision_loss: CriterionSummary,
+}
+impl Summary {
+    fn entries(&self) -> [(&str, &str, &CriterionSummary); 5] {
+        [
+            (
+                "wcag_text_contrast",
+                "WCAG text contrast",
+                &self.wcag_text_contrast,
+            ),
+            (
+                "wcag_non_text_contrast",
+                "WCAG non-text contrast",
+                &self.wcag_non_text_contrast,
+            ),
+            (
+                "rendered_legibility",
+                "rendered legibility",
+                &self.rendered_legibility,
+            ),
+            ("missing_glyphs", "missing glyphs", &self.missing_glyphs),
+            (
+                "colour_vision_loss",
+                "colour vision loss",
+                &self.colour_vision_loss,
+            ),
+        ]
+    }
+    fn build(automatic: &[Finding], declared: &a11y::ImageReport, level: Level) -> Self {
+        let mut s = Self {
+            wcag_text_contrast: CriterionSummary::empty(
+                Status::Unmeasurable,
+                "no measured text regions",
+                Some(if level == Level::AA { "1.4.3" } else { "1.4.6" }),
+            ),
+            wcag_non_text_contrast: CriterionSummary::empty(
+                Status::NotApplicable,
+                "no candidate UI regions",
+                Some("1.4.11"),
+            ),
+            rendered_legibility: CriterionSummary::empty(
+                Status::Unmeasurable,
+                "no measured text regions",
+                None,
+            ),
+            missing_glyphs: CriterionSummary::empty(
+                Status::NotVerified,
+                "glyph completeness unverified",
+                None,
+            ),
+            colour_vision_loss: CriterionSummary::empty(
+                Status::NotVerified,
+                "semantic colour information completeness unverified",
+                None,
+            ),
+        };
+        for (i, f) in automatic
+            .iter()
+            .enumerate()
+            .filter(|(_, f)| !f.region.overridden_by_declared)
+        {
+            let c = if f.region.kind == "text" {
+                &mut s.wcag_text_contrast
+            } else {
+                &mut s.wcag_non_text_contrast
+            };
+            let detail = match f.ratio {
+                Some(r) if f.verdict == Verdict::Unmeasurable => {
+                    format!("not determinable (thin text, lower bound {r:.2}:1)")
+                }
+                Some(r) => format!("{r:.2} :1 source-colour; requires {}:1", f.required_ratio),
+                None => "not determinable (unsupported local pixels)".into(),
+            };
+            c.observe(f.verdict.into(), "automatic", i, detail, f.ratio);
+            if f.region.kind == "text" {
+                if let Some(v) = f.legibility_verdict {
+                    let q = f.legibility.as_ref();
+                    let ratio = q.and_then(|q| q.contrast);
+                    let detail = match ratio {
+                        Some(r) => format!(
+                            "{r:.2} :1 displayed; {}",
+                            q.map(|q| q.reasons.join(", ")).unwrap_or_default()
+                        ),
+                        None => "not determinable (unsupported local pixels)".into(),
+                    };
+                    s.rendered_legibility
+                        .observe(v.into(), "automatic", i, detail, ratio);
+                }
+                s.missing_glyphs.observe(
+                    if f.glyph_verdict == Verdict::Warn {
+                        Status::Warn
+                    } else {
+                        Status::NotVerified
+                    },
+                    "automatic",
+                    i,
+                    format!(
+                        "{} glyph-shaped candidates; glyph completeness unverified",
+                        f.missing_glyphs.len()
+                    ),
+                    None,
+                );
+            }
+        }
+        for (i, c) in declared.contrast.iter().enumerate() {
+            let target = if c.kind == "text" {
+                &mut s.wcag_text_contrast
+            } else {
+                &mut s.wcag_non_text_contrast
+            };
+            // Classify the unchanged declared measurement against this summary's target.
+            // Keep the configured declared verdict/threshold in its original report.
+            let large = c.kind == "text"
+                && ((c.level == "AA" && c.threshold == 3.)
+                    || (c.level == "AAA" && c.threshold == 4.5));
+            let required = if c.kind == "ui" {
+                3.
+            } else {
+                match (level, large) {
+                    (Level::AA, false) | (Level::AAA, true) => 4.5,
+                    (Level::AA, true) => 3.,
+                    (Level::AAA, false) => 7.,
+                }
+            };
+            let status = match c.ratio {
+                Some(r) if r + 1e-12 >= required => Status::Pass,
+                Some(_) if !c.note.contains("lower bound") => Status::Fail,
+                _ => Status::Unmeasurable,
+            };
+            target.observe(
+                status,
+                "declared_contrast",
+                i,
+                format!(
+                    "{}; summary requires {required}:1; configured {} verdict {}; {}",
+                    c.ratio
+                        .map(|r| format!("{r:.2} :1 source-colour"))
+                        .unwrap_or_else(|| "not determinable".into()),
+                    c.level,
+                    c.verdict,
+                    c.note
+                ),
+                c.ratio,
+            );
+        }
+        for (i, f) in declared.findings.iter().enumerate() {
+            s.colour_vision_loss.observe(
+                Status::Warn,
+                "colour_vision_findings",
+                i,
+                f.message.clone(),
+                Some(f.simulated_delta_e),
+            );
+        }
+        s
+    }
+    fn verdict(&self, text_detected: bool) -> Verdict {
+        let statuses: Vec<_> = self.entries().iter().map(|(_, _, c)| c.status).collect();
+        if statuses.contains(&Status::Fail) {
+            Verdict::Fail
+        } else if statuses.contains(&Status::Warn) {
+            Verdict::Warn
+        } else if text_detected && statuses.contains(&Status::Pass) {
+            Verdict::Pass
+        } else {
+            Verdict::Unmeasurable
+        }
+    }
+}
+
 /// Automatic evidence for one capture.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ImageReport {
@@ -139,6 +457,12 @@ pub struct ImageReport {
     pub name: String,
     /// Aggregate; zero text detection cannot PASS.
     pub verdict: Verdict,
+    /// Independent criterion verdicts and counts.
+    pub summary: Summary,
+    /// Scope of every image PASS.
+    pub scope: String,
+    /// Explicit gaps that do not erase measured results.
+    pub limitations: Vec<String>,
     /// Exact detector availability, including absent pinned model.
     pub detectors: Vec<DetectorStatus>,
     /// Explicit text detection count/no-text statement.
@@ -161,6 +485,8 @@ pub struct Report {
     pub source_refs: Vec<String>,
     /// Failures dominate unknown/warning coverage.
     pub verdict: Verdict,
+    /// Scope of a measured run PASS.
+    pub scope: String,
     /// PRE-CHECK framing.
     pub disclaimer: String,
     /// Effective text target.
@@ -548,25 +874,40 @@ pub fn measure(image: &RgbImage, region: Region, options: &Options) -> Result<Fi
     Ok(result)
 }
 fn aggregate(values: impl Iterator<Item = Verdict>) -> Verdict {
-    values.fold(Verdict::Pass, |a, b| match (a, b) {
-        (Verdict::Fail, _) | (_, Verdict::Fail) => Verdict::Fail,
-        (Verdict::Unmeasurable, _) | (_, Verdict::Unmeasurable) => Verdict::Unmeasurable,
-        (Verdict::Warn, _) | (_, Verdict::Warn) => Verdict::Warn,
-        _ => Verdict::Pass,
-    })
+    let values: Vec<_> = values.collect();
+    if values.contains(&Verdict::Fail) {
+        Verdict::Fail
+    } else if values.contains(&Verdict::Warn) {
+        Verdict::Warn
+    } else if values.contains(&Verdict::Pass) {
+        Verdict::Pass
+    } else {
+        Verdict::Unmeasurable
+    }
 }
 impl Report {
     /// Stable text, with detector misses and region measurements made explicit.
     pub fn text(&self) -> String {
         let mut s = format!(
-            "a11y auto: {}\n{}\npx-per-pt: {} (see scale assumption)\n",
+            "a11y auto: {}\n{}\npx-per-pt: {} (see scale assumption)\nscope: detected regions; detection completeness unknown\n",
             self.verdict, self.disclaimer, self.px_per_pt
         );
         for im in &self.images {
             s.push_str(&format!(
-                "{} {}: {}\n",
-                im.verdict, im.name, im.text_detection
+                "{} {} — {}\n",
+                im.verdict,
+                im.name,
+                im.summary
+                    .entries()
+                    .iter()
+                    .map(|(_, label, c)| format!("{label}: {} {}", c.status, c.detail))
+                    .collect::<Vec<_>>()
+                    .join("; ")
             ));
+            s.push_str(&format!("  {}; scope: {}\n", im.text_detection, im.scope));
+            for limitation in &im.limitations {
+                s.push_str(&format!("  limitation: {limitation}\n"));
+            }
             for d in &im.detectors {
                 s.push_str(&format!("  {} {}: {}\n", d.detector, d.state, d.reason));
             }
@@ -611,47 +952,23 @@ impl Report {
             "<?xml version=\"1.0\"?><testsuite name=\"automatic accessibility pre-check\">",
         );
         for im in &self.images {
-            let mut cases = vec![(im.name.clone(), im.verdict, im.text_detection.clone())];
-            for (i, f) in im.automatic.iter().enumerate() {
-                cases.push((
-                    format!("{}:auto:{i}:contrast", im.name),
-                    f.verdict,
-                    format!("{:?}", f),
+            for (key, _, c) in im.summary.entries() {
+                body.push_str(&format!(
+                    "<testcase classname=\"{}\" name=\"{}\">",
+                    xml(&im.name),
+                    key
                 ));
-                if let Some(v) = f.legibility_verdict {
-                    cases.push((
-                        format!("{}:auto:{i}:legibility", im.name),
-                        v,
-                        format!("{:?}", f.legibility),
-                    ));
+                match c.status {
+                    Status::Fail => body.push_str("<failure message=\"measured failure\"/>"),
+                    Status::Pass => {}
+                    _ => body.push_str(&format!("<skipped message=\"{}\"/>", c.status)),
                 }
-                if f.region.kind == "text" {
-                    cases.push((
-                        format!("{}:auto:{i}:glyphs", im.name),
-                        f.glyph_verdict,
-                        format!("{:?}", f.missing_glyphs),
-                    ));
-                }
-            }
-            for c in &im.declared_and_colour_vision.contrast {
-                cases.push((
-                    format!("{}:declared:{}", im.name, c.name),
-                    match c.verdict.as_str() {
-                        "PASS" => Verdict::Pass,
-                        "FAIL" => Verdict::Fail,
-                        _ => Verdict::Unmeasurable,
-                    },
-                    c.note.clone(),
-                ));
-            }
-            for (name, v, note) in cases {
-                body.push_str(&format!("<testcase name=\"{}\">", xml(&name)));
-                match v {
-                    Verdict::Fail => body.push_str("<failure message=\"measured failure\"/>"),
-                    Verdict::Warn | Verdict::Unmeasurable => body
-                        .push_str("<skipped message=\"missing evidence or candidate warning\"/>"),
-                    _ => {}
-                }
+                let note = format!(
+                    "{}; scope: {}; summary: {}",
+                    c.detail,
+                    im.scope,
+                    serde_json::to_string(c)?
+                );
                 body.push_str(&format!(
                     "<system-out>{}</system-out></testcase>",
                     xml(&note)
@@ -720,7 +1037,7 @@ pub fn run(input: &Path, out: &Path, options: &Options) -> Result<Report> {
         b"incomplete automatic pre-check\n",
     )
     .map_err(crate::io_err("writing automatic sentinel".into()))?;
-    let mut report=Report {schema:SCHEMA.into(),report_id:None,source_refs:vec![],verdict:Verdict::Unmeasurable,disclaimer:saccade_core::safety::output::DISCLAIMER.into(),level:options.level,px_per_pt:options.px_per_pt,assumptions:vec!["Upper-quartile ascender-height letter body (small detached marks excluded), capped by detected height, / px-per-pt >=18 assumes large text; font size, bold and display scaling are not observed. Without explicit scale, scale unknown: normal-text threshold applied.".into(),"Automatic regions are candidates, not WCAG applicability or complete detection. Fallback misses short, tiny, rotated, joined or textured text; closed-edge UI candidates omit many icons/controls.".into(),"Glyph checks report WARN/UNMEASURABLE, never font completeness. CVD information loss is a candidate warning with no semantic inference.".into()],images:vec![]};
+    let mut report=Report {schema:SCHEMA.into(),report_id:None,source_refs:vec![],verdict:Verdict::Unmeasurable,scope:"detected regions; detection completeness unknown".into(),disclaimer:saccade_core::safety::output::DISCLAIMER.into(),level:options.level,px_per_pt:options.px_per_pt,assumptions:vec!["Upper-quartile ascender-height letter body (small detached marks excluded), capped by detected height, / px-per-pt >=18 assumes large text; font size, bold and display scaling are not observed. Without explicit scale, scale unknown: normal-text threshold applied.".into(),"Automatic regions are candidates, not WCAG applicability or complete detection. Fallback misses short, tiny, rotated, joined or textured text; closed-edge UI candidates omit many icons/controls.".into(),"Glyph checks report WARN/NOT_VERIFIED, never font completeness. CVD information loss is a candidate warning with no semantic inference.".into()],images:vec![]};
     for im in declared.images {
         let image = saccade_core::safety::opaque(&out.join(&im.original))?;
         let mut regions = fallback(&image)?;
@@ -792,28 +1109,27 @@ pub fn run(input: &Path, out: &Path, options: &Options) -> Result<Report> {
             });
             automatic.push(measure(&image, r, options)?);
         }
-        let v = match im.verdict.as_str() {
-            "FAIL" => Verdict::Fail,
-            "WARN" => Verdict::Warn,
-            _ => Verdict::Pass,
-        };
-        let verdict = aggregate(
-            std::iter::once(v)
-                .chain((text_count == 0).then_some(Verdict::Unmeasurable))
-                .chain(
-                    automatic
-                        .iter()
-                        .filter(|f| !f.region.overridden_by_declared)
-                        .flat_map(|f| {
-                            [Some(f.verdict), f.legibility_verdict, Some(f.glyph_verdict)]
-                                .into_iter()
-                                .flatten()
-                        }),
-                ),
-        );
+        let summary = Summary::build(&automatic, &im, options.level);
+        let verdict = summary.verdict(text_count > 0);
+        let mut limitations = vec![
+            "detection completeness unknown".into(),
+            "glyph completeness unverified".into(),
+            "semantic colour information completeness unverified".into(),
+        ];
+        for (key, _, c) in summary.entries() {
+            if c.counts.unmeasurable > 0 || c.counts.not_verified > 0 {
+                limitations.push(format!(
+                    "{key}: {} unmeasurable, {} not verified regions",
+                    c.counts.unmeasurable, c.counts.not_verified
+                ));
+            }
+        }
         report.images.push(ImageReport {
             name: im.name.clone(),
             verdict,
+            summary,
+            scope: "detected regions; detection completeness unknown".into(),
+            limitations,
             detectors,
             text_detection,
             automatic,
