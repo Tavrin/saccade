@@ -218,34 +218,33 @@ fn estimate_components(
                                 })
                         })
                     });
-                let interior = neighbours(i, 1).count() == 9 && neighbours(i, 1).all(|j| bits[j]);
-                let mixed_direction =
-                    (0..3).any(|c| pixels[i][c] < bg[c]) && (0..3).any(|c| pixels[i][c] > bg[c]);
+                // A source-colour point needs a full 3x3 constant core. A
+                // 2x2 antialias shelf is not evidence of the original ink.
                 let plateau = colour_plateau
-                    && (boundary || (interior && d > 6))
-                    && (!mixed_direction
+                    && (boundary
                         || neighbours(i, 1).count() == 9
-                            && neighbours(i, 1).all(|j| pixels[j] == pixels[i]));
+                            && neighbours(i, 1).all(|j| pixels[j] == pixels[i]))
+                    && d > 6;
                 let entry = cores.entry(pixels[i]).or_default();
                 entry.0 += 1;
                 entry.1 |= plateau;
             }
-            // Even a unique observed peak is a valid source-colour lower bound
-            // for monotone channel directions. Requiring repeated colour here
-            // selected weaker antialias flanks instead of the actual thin core.
-            // Point/plateau evidence still requires two supported core pixels.
-            // Core maxima on an antialiased flank are not separate inks. Supported
-            // plateaus retain all distinct colours; without a plateau, retain the
-            // farthest supported colour as a thin-stroke lower bound.
-            let has_plateau = cores.values().any(|(n, p)| *n >= 2 && *p);
-            let max_distance = cores.keys().map(|fg| distance(*fg, bg)).max().unwrap_or(0);
+            // Supported extreme: 90th percentile of local stroke maxima,
+            // with at least two pixels in the upper tail. Ignore isolated peaks;
+            // retain distinct supported plateaus to catch mixed source inks.
+            let mut tail: Vec<_> = cores
+                .iter()
+                .flat_map(|(p, (n, _))| std::iter::repeat_n(*p, *n))
+                .collect();
+            tail.sort_by_key(|p| distance(*p, bg));
+            let peak =
+                (tail.len() >= 2).then(|| tail[((tail.len() - 1) * 9 / 10).min(tail.len() - 2)]);
+            let max_distance = peak.map_or(0, |p| distance(p, bg));
             let mut supported = false;
             let segment = component[0];
             for (fg, (n, plateau)) in cores {
                 let plateau = plateau && n >= 2;
-                if (!rendered && has_plateau && !plateau)
-                    || ((!has_plateau || rendered) && !plateau && distance(fg, bg) < max_distance)
-                {
+                if !plateau && Some(fg) != peak {
                     continue;
                 }
                 // Encoded interpolation with opposite channel directions can
@@ -284,7 +283,7 @@ fn estimate_components(
                         } else if plateau {
                             "stroke-core plateau"
                         } else {
-                            "lower bound: thin stroke has no supported plateau"
+                            "lower bound: supported stroke-core 90th percentile, minimum two upper-tail pixels; thin stroke has no supported plateau"
                         }
                     );
                 }
@@ -293,6 +292,41 @@ fn estimate_components(
                 unknown = true;
                 result.note.push_str(&format!(" Unsupported core component {count}, {size} ink pixels, max distance {max_distance}.", size=component.len()));
             }
+        }
+    }
+    if !boundary && !rendered && !unknown {
+        // Thin components constrain the common text ink from below. Use the
+        // strongest supported body, while every supported independent plateau
+        // remains worst-point evidence (including differently coloured ink).
+        let point = result
+            .pairs
+            .iter()
+            .filter(|p| !p.lower_bound)
+            .min_by(|a, b| a.ratio.total_cmp(&b.ratio));
+        let bound = result
+            .pairs
+            .iter()
+            .filter(|p| p.lower_bound)
+            .max_by(|a, b| a.ratio.total_cmp(&b.ratio));
+        let selected = match (point, bound) {
+            (Some(p), Some(b)) => Some(if p.ratio <= b.ratio { p } else { b }),
+            (p, b) => p.or(b),
+        };
+        if let Some(p) = selected {
+            worst = p.ratio;
+            worst_lower = p.lower_bound;
+            result.foreground = Some(p.foreground);
+            result.background = Some(p.background);
+            result.note = format!(
+                "Common-ink thin-body lower bound: supported local core 90th percentile, minimum two upper-tail pixels; independent plateaus retain worst-point evidence. Selected component {}, support {} pixels. {}",
+                p.component,
+                p.support,
+                if p.lower_bound {
+                    "lower bound"
+                } else {
+                    "stroke-core plateau"
+                }
+            );
         }
     }
     if unknown {

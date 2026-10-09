@@ -102,6 +102,17 @@ fn field(
     } else {
         None
     };
+    let rgb_cutoff = rgb_bg.map(|bg| {
+        values
+            .iter()
+            .enumerate()
+            .map(|(i, _)| {
+                let p = image.get_pixel(r[0] + i as u32 % r[2], r[1] + i as u32 / r[2]);
+                (0..3).map(|c| p[c].abs_diff(bg[c])).max().unwrap_or(0)
+            })
+            .max()
+            .map_or(3, |span| ((f64::from(span) * 0.15).ceil() as u8).max(3))
+    });
     let bits: Vec<_> = values
         .iter()
         .zip(&selected)
@@ -109,7 +120,7 @@ fn field(
         .map(|(i, (v, s))| {
             let p = image.get_pixel(r[0] + i as u32 % r[2], r[1] + i as u32 / r[2]);
             *s && rgb_bg.map_or((v - bg).abs() >= cutoff, |b| {
-                (0..3).any(|c| p[c].abs_diff(b[c]) >= 3)
+                (0..3).any(|c| p[c].abs_diff(b[c]) >= rgb_cutoff.unwrap_or(3))
             })
         })
         .collect();
@@ -357,9 +368,44 @@ fn stroke(f: &Field, c: &Component) -> f64 {
     }
     quantile(runs, 0.25)
 }
+// Letter bodies exclude detached marks, punctuation and joined components.
+// Counters are holes in an eight-connected body, never independent samples.
+fn body_heights(f: &Field, cs: &[Component]) -> Vec<f64> {
+    let max_height = cs
+        .iter()
+        .filter(|c| c.indices.len() >= 6 && c.r[2] <= c.r[3] * 2)
+        .map(|c| c.r[3])
+        .max()
+        .unwrap_or(0);
+    cs.iter()
+        .filter(|c| {
+            c.indices.len() >= 6
+                && (c.r[3] >= 5 || c.r[2] * 4 <= c.r[3] * 3 && c.indices.len() == c.r[2] * c.r[3])
+                && (c.r[3] * 5 >= max_height * 3
+                    || c.r[2] * 4 <= c.r[3] * 3 && c.indices.len() == c.r[2] * c.r[3])
+                && c.r[2] <= c.r[3] * 2
+                && c.r[0] > 0
+                && c.r[1] > 0
+                && c.r[0] + c.r[2] < f.width
+                && c.r[1] + c.r[3] < f.height
+        })
+        .map(|c| c.r[3] as f64)
+        .collect()
+}
+/// Robust x-height proxy: lower quartile of substantial disconnected letter bodies.
+/// Dots, punctuation, diacritics, counters and joined components cannot set size.
+pub fn x_height(image: &RgbaImage, r: [u32; 4]) -> Result<Option<f64>> {
+    let Some(f) = field(image, r, None, true)? else {
+        return Ok(None);
+    };
+    let Some(cs) = components(&f) else {
+        return Ok(None);
+    };
+    let heights = body_heights(&f, &cs);
+    Ok((!heights.is_empty()).then(|| quantile(heights, 0.25)))
+}
 /// Robust letter-body height for explicit display-scale classification.
-/// Excludes small detached marks and uses the upper quartile of ascender-height bodies;
-/// unlike the minimum legibility metric, punctuation cannot set the line size.
+/// Uses the same supported bodies as legibility, with the upper quartile.
 pub fn line_height(image: &RgbaImage, r: [u32; 4]) -> Result<Option<f64>> {
     let Some(f) = field(image, r, None, true)? else {
         return Ok(None);
@@ -367,17 +413,7 @@ pub fn line_height(image: &RgbaImage, r: [u32; 4]) -> Result<Option<f64>> {
     let Some(cs) = components(&f) else {
         return Ok(None);
     };
-    let max_height = cs
-        .iter()
-        .filter(|c| c.indices.len() >= 3)
-        .map(|c| c.r[3])
-        .max()
-        .unwrap_or(0);
-    let heights: Vec<_> = cs
-        .iter()
-        .filter(|c| c.indices.len() >= 3 && c.r[3] >= 3 && c.r[3] * 5 >= max_height * 4)
-        .map(|c| c.r[3] as f64)
-        .collect();
+    let heights = body_heights(&f, &cs);
     Ok((!heights.is_empty()).then(|| quantile(heights, 0.75)))
 }
 /// Measure one region. No glyphs, clipping, mixed/transparent backgrounds abstain.
@@ -419,6 +455,7 @@ pub fn legibility(
         result.reasons.push("component budget exceeded".into());
         return Ok(result);
     };
+    let heights = body_heights(&f, &cs);
     let cs: Vec<_> = cs
         .iter()
         .filter(|c| c.indices.len() >= 3 && c.r[3] >= 3)
@@ -426,6 +463,9 @@ pub fn legibility(
     if cs.is_empty() {
         result.reasons.push("no measurable glyph bodies".into());
         return Ok(result);
+    }
+    if !heights.is_empty() {
+        result.x_height_px = Some(quantile(heights.clone(), 0.25));
     }
     if cs.iter().any(|c| {
         c.r[0] == 0 || c.r[1] == 0 || c.r[0] + c.r[2] == f.width || c.r[1] + c.r[3] == f.height
@@ -456,10 +496,7 @@ pub fn legibility(
     )?;
     let contrast = estimate.ratio;
     let uncertain_contrast = contrast.is_none();
-    let height = cs
-        .iter()
-        .map(|c| c.r[3] as f64)
-        .fold(f64::INFINITY, f64::min);
+    let height = (!heights.is_empty()).then(|| quantile(heights, 0.25));
     let sharpness = cs
         .iter()
         .map(|c| {
@@ -485,11 +522,15 @@ pub fn legibility(
         .map(|c| stroke(&f, c))
         .fold(f64::INFINITY, f64::min);
     result.contrast = contrast;
-    result.x_height_px = Some(height);
+    result.x_height_px = height;
     result.sharpness = Some(sharpness);
     result.stroke_px = Some(strokes);
     for (value, min, reason) in [
-        (height, policy.minimum_x_height_px, "too_small"),
+        (
+            height.unwrap_or(f64::INFINITY),
+            policy.minimum_x_height_px,
+            "too_small",
+        ),
         (sharpness, policy.minimum_sharpness, "blurred"),
         (strokes, policy.minimum_stroke_px, "undersampled_strokes"),
     ] {
@@ -503,22 +544,24 @@ pub fn legibility(
     if contrast.is_some_and(|c| c < policy.minimum_contrast) {
         result.reasons.push("low_contrast".into());
     }
-    // Unknown contrast cannot hide independently measured size/blur/stroke
-    // failures. Thin displayed cores can establish rendered-contrast FAIL.
-    if uncertain_contrast {
-        result.state = if result.reasons.is_empty() {
-            State::InsufficientEvidence
-        } else {
-            State::Illegible
-        };
-        result.reasons.push(estimate.note);
-        return Ok(result);
+    // Missing size cannot hide independently supported blur/stroke/contrast
+    // failures; joined blurred bodies still support a sharpness measurement.
+    let failed = !result.reasons.is_empty();
+    if height.is_none() {
+        result
+            .reasons
+            .push("no supported disconnected letter bodies (marks or undersampled text)".into());
     }
-    result.state = if result.reasons.is_empty() {
+    result.state = if failed {
+        State::Illegible
+    } else if uncertain_contrast || height.is_none() {
+        State::InsufficientEvidence
+    } else {
         result.reasons.push("pixel thresholds satisfied; human readability and glyph completeness are not certified".into());
         State::Legible
-    } else {
-        State::Illegible
     };
+    if uncertain_contrast {
+        result.reasons.push(estimate.note);
+    }
     Ok(result)
 }

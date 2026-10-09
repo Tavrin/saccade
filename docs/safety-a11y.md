@@ -179,18 +179,20 @@ Contrast uses connected ink selected by encoded-sRGB difference from spatial
 background estimates. Each component uses a ring at radius three pixels with a
 one-pixel guard band; ring channel range must be <=6 encoded levels. Local maxima
 of colour distance select stroke cores; every colour with at least two supported
-core pixels is checked as point evidence, and the worst component wins. Text plateau support also requires a one-pixel eroded ink interior and colour
-separation above the six-level ring tolerance; a repeated antialias edge block
-is insufficient. Mixed channel directions require a full 3x3 colour plateau.
+core pixels is checked as point evidence, and the worst component wins. Text point support requires a full 3x3 constant colour core and separation above
+the six-level ring tolerance; a repeated 2x2 antialias shelf is insufficient.
 A core without a supported
 plateau gives a lower bound: above threshold can PASS, below it abstains. A diffuse
 ring or unsupported component abstains. The notes identify the worst component,
 colour support and local ring. UI outlines use 8x8 boundary tiles with at least
 two core pixels of one colour per segment; the worst supported segment wins.
 A supported plateau below target establishes FAIL even if another core is thin.
-A diffuse local background still abstains. A unique stroke peak is sufficient
-for a lower bound when channel directions are monotone: requiring an identical
-second sample could select a pale antialias flank instead of the actual core.
+A diffuse local background still abstains. Thin stroke bounds use the 90th
+percentile of local core maxima, capped to leave at least two pixels in the
+upper tail. Thin components share an assumed common ink: the strongest supported
+body tightens that ink bound; this cannot verify distinct inks that have no
+plateau. Isolated noise peaks cannot set the bound. Supported plateaus of
+distinct inks remain independent worst-point evidence.
 Opposite channel directions cannot supply a thin-stroke lower bound because
 encoded interpolation can cross a luminance minimum. Rendered legibility uses
 actual core pixels, retaining weak supported colours; detached bodies smaller
@@ -271,14 +273,17 @@ No recognition model/dictionary is needed and no download or paid/network call i
 attempted. Absence, invalid pins/runtime and inference failure are explicitly
 `unavailable`. The model-free `edge-stroke-lines/2` fallback groups at least three
 aligned similar-height edge components; its support score is 0.7, not a probability.
-`closed-edge-components/1` labels compact boundaries with support on all four
+`closed-edge-components/2` labels closed outlines and filled controls with support on all four
 sides as UI candidates (score 0.75). Its precision-first rule misses many icons,
 rounded controls and nonrectangular components. A box is never proof of semantic
 UI applicability under SC 1.4.11. A run with zero text candidates explicitly says
-“no text detected by …” and cannot have an automatic PASS verdict.
+“no text detected by …” and cannot have an automatic PASS verdict. A passing
+control also cannot promote an unsupported OCR text candidate to image PASS;
+positive text-contrast or rendered-legibility evidence is required.
 
 Text contrast uses SC 1.4.3 AA 4.5:1 normal / 3:1 large or SC 1.4.6 AAA 7:1 normal /
-4.5:1 large. UI contrast targets SC 1.4.11's 3:1. Upper-quartile ascender-height letter-body, excluding small detached marks and capped by detected height, divided by
+4.5:1 large. UI contrast targets SC 1.4.11's 3:1. Upper-quartile letter-body height,
+capped by lower-quartile x-height / 0.547 and detected height, divided by
 `--px-per-pt` >=18 is the **large-text assumption**, used only with explicit scale. Without `--px-per-pt`,
 scale is unknown and the normal-text threshold applies. Body bounds do not establish a font's point size,
 boldness, device pixel ratio or final display size. No 14pt-bold inference is made.
@@ -288,8 +293,19 @@ Core's shared component-local estimator produces swatches and ratio. Nonuniform
 local backgrounds and unsupported cores produce UNMEASURABLE contrast. Independent
 text-quality evidence records the worst component's contrast, body-height proxy,
 sharpness and stroke widths; these are pixel checks, not human reading tests.
+Wide rounded outlines and filled controls may contain text. Automatic boundary
+checks scan inward from each of four outside edges, including curved transitions,
+and compare each eight-pixel segment against adjacent outside pixels. A segment
+checks every boundary colour with two same-colour pixels; the worst supported
+segment/colour wins.
+Unsupported segments prevent PASS, but cannot erase a supported FAIL.
 Rendered contrast measures actual displayed cores: a thin core below target is a
-legibility FAIL even when the WCAG source-colour verdict is UNMEASURABLE. Reports
+legibility FAIL when the WCAG source-colour verdict is UNMEASURABLE. In auto
+mode, a source-colour PASS makes a displayed shortfall WARN with the reason
+"thin rendering lowers displayed contrast". The text-legibility and critical-text
+commands keep their pixel-policy verdicts. X-height uses the lower quartile of
+substantial disconnected letter bodies, excluding detached marks and joined
+components; counters remain holes inside bodies. Reports
 separate the two verdicts and give each ratio. Missing pinned detection reports
 `next action: saccade models pull runtime and saccade models pull ocr`.
 Automatic size/sharpness/stroke proxy defects are WARN rather than a font-size or

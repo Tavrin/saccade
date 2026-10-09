@@ -704,3 +704,140 @@ fn measured_criterion_summary_and_junit_scope() {
     assert!(report.text().contains("lower bound"));
     assert!(report.text().contains("displayed"));
 }
+
+#[test]
+fn rounded_controls_with_text_and_jpeg_offline_gate() {
+    // Frozen Pillow/DejaVu rasterization, opaque sRGB. Three 320px controls:
+    // good borders #767676, fill #1a5fb4; bad borders #e4e4e4, fill #ffb347.
+    // JPEG copies were encoded at quality 75, without any model or download.
+    for (bytes, good) in [
+        (include_bytes!("fixtures/control-good.png").as_slice(), true),
+        (include_bytes!("fixtures/control-bad.png").as_slice(), false),
+    ] {
+        let im = image::load_from_memory(bytes).unwrap().to_rgb8();
+        let findings: Vec<_> = auto::fallback(&im)
+            .unwrap()
+            .into_iter()
+            .map(|r| auto::measure(&im, r, &Options::default()).unwrap())
+            .collect();
+        let controls: Vec<_> = findings.iter().filter(|f| f.region.kind == "ui").collect();
+        assert_eq!(controls.len(), 3, "{controls:?}");
+        assert!(
+            controls
+                .iter()
+                .all(|f| f.verdict == if good { Verdict::Pass } else { Verdict::Fail }),
+            "{controls:?}"
+        );
+        if good {
+            let placeholder = auto::measure(
+                &im,
+                auto::Region {
+                    kind: "text".into(),
+                    rect_px: [207, 205, 171, 27],
+                    text_height_px: 15,
+                    provenance: "auto_detected".into(),
+                    detector: auto::FALLBACK.into(),
+                    confidence: 0.7,
+                    overridden_by_declared: false,
+                },
+                &Options::default(),
+            )
+            .unwrap();
+            assert_eq!(placeholder.verdict, Verdict::Pass, "{placeholder:?}");
+            assert_eq!(placeholder.legibility_verdict, Some(Verdict::Warn));
+            assert!(
+                placeholder
+                    .reasons
+                    .iter()
+                    .any(|r| r == "thin rendering lowers displayed contrast")
+            );
+            for f in &findings {
+                assert_ne!(f.verdict, Verdict::Fail, "{f:?}");
+                assert_ne!(f.legibility_verdict, Some(Verdict::Fail), "{f:?}");
+            }
+        }
+        // A bullet-only password line has no observed letter x-height. Its
+        // independently low displayed contrast must still fail on the bad pair.
+        let dots = auto::measure(
+            &im,
+            auto::Region {
+                kind: "text".into(),
+                rect_px: [213, 298, 72, 9],
+                text_height_px: 4,
+                provenance: "auto_detected".into(),
+                detector: auto::FALLBACK.into(),
+                confidence: 0.7,
+                overridden_by_declared: false,
+            },
+            &Options::default(),
+        )
+        .unwrap();
+        assert!(dots.legibility.as_ref().unwrap().x_height_px.is_none());
+        if !good {
+            assert_eq!(dots.legibility_verdict, Some(Verdict::Fail));
+        }
+        // Dots and counters cannot set the title/button letter-body size.
+        for (rect, size) in [([191, 73, 133, 48], 30.), ([310, 363, 105, 29], 18.)] {
+            let f = auto::measure(
+                &im,
+                auto::Region {
+                    kind: "text".into(),
+                    rect_px: rect,
+                    text_height_px: rect[3] - 4,
+                    provenance: "auto_detected".into(),
+                    detector: auto::FALLBACK.into(),
+                    confidence: 0.7,
+                    overridden_by_declared: false,
+                },
+                &Options::default(),
+            )
+            .unwrap();
+            let height = f.legibility.unwrap().x_height_px.unwrap();
+            assert!(
+                (height - 0.547 * size).abs() <= 2.,
+                "size={size} height={height}"
+            );
+        }
+    }
+    // Two weak pixels in a segment must not hide behind its six strong pixels.
+    let mut mixed = RgbImage::from_pixel(160, 70, Rgb([255; 3]));
+    for y in 20..=50 {
+        for x in 20..=140 {
+            if y == 20 || y == 50 || x == 20 || x == 140 {
+                mixed.put_pixel(
+                    x,
+                    y,
+                    Rgb(if y == 20 && (28..30).contains(&x) {
+                        [210; 3]
+                    } else {
+                        [100; 3]
+                    }),
+                );
+            }
+        }
+    }
+    let control = auto::fallback(&mixed)
+        .unwrap()
+        .into_iter()
+        .find(|r| r.kind == "ui")
+        .unwrap();
+    assert_eq!(
+        auto::measure(&mixed, control, &Options::default())
+            .unwrap()
+            .verdict,
+        Verdict::Fail
+    );
+    for bytes in [
+        include_bytes!("fixtures/control-bad-q75.jpg").as_slice(),
+        include_bytes!("fixtures/near-threshold-q75.jpg").as_slice(),
+    ] {
+        let im = image::load_from_memory(bytes).unwrap().to_rgb8();
+        for r in auto::fallback(&im).unwrap() {
+            let f = auto::measure(&im, r, &Options::default()).unwrap();
+            // The defective screen has one compliant dark title.
+            if f.region.rect_px[1] > 120 || im.width() == 640 {
+                assert_ne!(f.verdict, Verdict::Pass, "{f:?}");
+            }
+        }
+    }
+}

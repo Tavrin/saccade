@@ -10,6 +10,9 @@
   Embed the previously CLI-only screenshot intake and mapping schemas so Rust
   schema discovery covers these existing contracts. See `docs/library.md` for
   the complete command audit and deferred orchestration.
+- Improve automatic accessibility stroke-core bounds and letter-body size estimates;
+  warn about thin rendering when source-colour contrast passes. Detect wide rounded
+  input outlines and filled controls containing text, with separate boundary checks.
 - `a11y auto` now exits 4 (insufficient evidence) for UNMEASURABLE runs,
   including images with no detected text. Completed MCP analyses remain non-errors;
   declared-region `experiment a11y` exit codes are unchanged.
