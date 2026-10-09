@@ -9,6 +9,10 @@ use std::path::Path;
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct GalleryRegion {
     /// Full-resolution `[x,y,width,height]`.
+    #[cfg_attr(
+        feature = "schema",
+        schemars(description = "Full-resolution [x,y,width,height].")
+    )]
     pub rect_px: [u32; 4],
     /// Selection reason(s): hotspot, bias, coverage, or detail.
     pub reasons: Vec<String>,

@@ -95,6 +95,12 @@ pub struct SelectorGeometry {
     /// Selector exactly as resolved by the producer.
     pub selector: String,
     /// Capture-pixel boxes `[x,y,width,height]`, after scroll/device-scale conversion.
+    #[cfg_attr(
+        feature = "schema",
+        schemars(
+            description = "Capture-pixel boxes [x,y,width,height], after scroll/device-scale conversion."
+        )
+    )]
     pub boxes: Vec<[u32; 4]>,
 }
 /// Capture-bound DOM geometry. Empty matches remain missing evidence.

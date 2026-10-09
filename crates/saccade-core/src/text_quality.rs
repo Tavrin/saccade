@@ -27,10 +27,18 @@ pub enum State {
 #[serde(deny_unknown_fields)]
 pub struct Candidate {
     /// Absolute capture pixels `[x,y,width,height]`.
+    #[cfg_attr(
+        feature = "schema",
+        schemars(description = "Absolute capture pixels [x,y,width,height].")
+    )]
     pub rect_px: [u32; 4],
     /// hollow_rectangle or replacement_diamond.
     pub shape: String,
     /// Heuristic shape score in `[0,1]`, not a calibrated probability.
+    #[cfg_attr(
+        feature = "schema",
+        schemars(description = "Heuristic shape score in [0,1], not a calibrated probability.")
+    )]
     pub confidence: f64,
 }
 /// Optional OCR evidence, isolated from pixel measurements.

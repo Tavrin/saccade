@@ -61,6 +61,8 @@ fn explicit_policies_do_not_install_or_weaken_each_other() -> Result<(), Box<dyn
     );
     let mut exact = config.clone();
     exact.mode = Mode::Identity;
+    exact.default_threshold = 0.0;
+    exact.default_metric = saccade_core::report::Metric::Max;
     let proof_dir = fixture.path().join("proof");
     let proof = workflows::run_prove(&CompareRun {
         config: &exact,

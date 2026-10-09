@@ -18,6 +18,12 @@ pub enum Selection {
         /// Native inclusion predicate.
         predicate: Predicate,
         /// Optional plain manifest filename; defaults to `<filename>.layers.json`.
+        #[cfg_attr(
+            feature = "schema",
+            schemars(
+                description = "Optional plain manifest filename; defaults to <filename>.layers.json."
+            )
+        )]
         #[serde(default)]
         manifest: Option<String>,
         /// Generic screen-space dump when no native manifest is supplied.
@@ -32,6 +38,10 @@ pub enum Selection {
     /// Pixel boxes with exclusive far edges.
     Boxes {
         /// `[x,y,width,height]` boxes.
+        #[cfg_attr(
+            feature = "schema",
+            schemars(description = "[x,y,width,height] boxes.")
+        )]
         boxes: Vec<[u32; 4]>,
     },
     /// Native side-specific layer.

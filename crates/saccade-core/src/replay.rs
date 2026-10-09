@@ -62,6 +62,10 @@ pub enum Operation {
         /// Candidate input relative to the recipe.
         b: PathBuf,
         /// FLIP deciding threshold in `[0,1]`.
+        #[cfg_attr(
+            feature = "schema",
+            schemars(description = "FLIP deciding threshold in [0,1].")
+        )]
         threshold: f64,
         /// mean, max, p95 or p99.
         metric: String,
@@ -83,6 +87,10 @@ pub enum Operation {
         /// Exact expected Unicode text, treated as inert data.
         expect_text: Vec<String>,
         /// Confidence cutoff in `[0,100]`.
+        #[cfg_attr(
+            feature = "schema",
+            schemars(description = "Confidence cutoff in [0,100].")
+        )]
         readable_confidence: f64,
         /// Positive or zero movement cutoff in pixels.
         moved_px: f64,

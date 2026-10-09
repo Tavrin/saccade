@@ -3,7 +3,7 @@ name: CI
 on:
   workflow_dispatch:
   push:
-    branches: [main, integration/train-1, integration/train-2, integration/train-3, integration/train-4]
+    branches: [main, integration/train-1, integration/train-2, integration/train-3, integration/train-4, integration/train-5]
   pull_request:
 
 permissions:

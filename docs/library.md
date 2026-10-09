@@ -13,7 +13,8 @@ review families retain their existing core measurements and CLI orchestration.
 The table names those boundaries explicitly; it does not claim every CLI branch
 has an equivalent command-level Rust entry point.
 
-All existing APIs remain available. Features remain opt-in: review requires `ai`;
+Core measurement and workflow APIs remain available. Accessibility policy has
+moved to `saccade-a11y` as documented below. Features remain opt-in: review requires `ai`;
 batch/history require a desktop (`unix` or `windows`) as their existing locking
 and process transport does. Signed trust-file enforcement fails closed outside
 Unix. OpenSSH verification uses an explicitly configured external executable,

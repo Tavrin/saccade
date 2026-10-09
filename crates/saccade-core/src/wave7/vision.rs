@@ -174,6 +174,10 @@ pub struct Detection {
     /// Original-pixel box.
     pub bbox: Rect,
     /// Finite score in `[0,1]`, not a calibrated correctness probability.
+    #[cfg_attr(
+        feature = "schema",
+        schemars(description = "Finite score in [0,1], not a calibrated correctness probability.")
+    )]
     pub score: f32,
     /// Optional prompted mask.
     pub mask: Option<Mask>,
