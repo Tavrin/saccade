@@ -18,8 +18,8 @@ On a tag push, three independent paths run:
 - Binary builds, packaging and four-platform qualification publish the GitHub
   release automatically, including archives, checksums and generated notes.
 - `python-wheels.yml` builds and publishes PyPI wheels and the sdist.
-- `release.yml` publishes `saccade-core`, then `saccade-print`, `saccade-a11y`,
-  `saccade-geo`, `saccade`, then the MCP manifest.
+- `release.yml` publishes `saccade-core`, then `saccade-print`, `saccade-geo`,
+  `saccade-a11y`, `saccade`, then the MCP manifest.
   These jobs are independent of binary qualification and PyPI. A failure leaves
   any successful publications in place and makes the affected job fail.
 
@@ -32,7 +32,7 @@ publish unless `server.json` and its cargo package match the tag version.
 
 `qualify.yml` is called automatically from `release.yml`. Once the workflow file is on the default branch, it can also be dispatched with the producing release workflow `run_id`, full `commit`, and `tag` to rerun clean-machine checks on its existing artifacts. It verifies the entire checksum manifest, extracts the target archive, checks version/commit, reproduces all showcase `EXPECTED.txt` transcripts, validates schema-bearing showcase JSON, and uploads one result per target. It does not build or publish.
 
-The local script proves formatting, Clippy, workspace and feature tests, both crate archives build after unpacking, package allowlist, license inventory generation, Action lint, historical readers, docs generation, and showcase/schema validation in the current worktree. CI and the tag release workflow also build both packaged crates. CI qualification proves the four clean runner installations and artifact identity. Browser checks, fork PR/update demonstrations, downstream consumer integration, live pilot support, and notarisation need separate human evidence; green local gates alone do not establish them.
+The local script proves formatting, Clippy, workspace and feature tests, all five crate archives build after unpacking, package allowlist, license inventory generation, Action lint, historical readers, docs generation, and showcase/schema validation in the current worktree. CI and the tag release workflow also build all five packaged crates. CI qualification proves the four clean runner installations and artifact identity. Browser checks, fork PR/update demonstrations, downstream consumer integration, live pilot support, and notarisation need separate human evidence; green local gates alone do not establish them.
 
 Maintainers own all Git pushes, tags, and workflow dispatches. Tag workflows perform publication automatically. See the [release decisions](design-decisions/release.md) for the notice and fixture policy.
 
@@ -64,7 +64,8 @@ private keys must stay outside the repository.
 1. Create the GitHub repository environment `release` in `Tavrin/saccade`.
    Restrict deployment to release tags (`v*`). For unattended tag publication,
    do not require a reviewer or another manual deployment approval.
-2. On **each** of `saccade-core` and `saccade` on crates.io, open
+2. On **each** of `saccade-core`, `saccade-print`, `saccade-geo`,
+   `saccade-a11y` and `saccade` on crates.io, open
    **Settings → Trusted Publishing** and configure GitHub repository
    `Tavrin/saccade`, workflow `release.yml`, environment `release` (case-sensitive).
 3. No stored crates.io token is needed. The jobs grant `id-token: write` and use
@@ -82,6 +83,9 @@ private keys must stay outside the repository.
 A successful local lint does not verify owner configuration or live publication.
 The first tag run must establish those results; authentication, download,
 checksum, cargo and MCP publication errors fail the workflow without suppression.
+
+A new crate's first publish is manual. Configure Trusted Publishing for that crate
+afterwards, before relying on tag automation for subsequent versions.
 
 ## Python / PyPI Trusted Publishing
 
@@ -154,7 +158,7 @@ The package declares `@playwright/test` as a peer dependency; no browser runtime
 
 ## Accessibility extension
 
-Publish in dependency order: `saccade-core`, `saccade-print`, `saccade-a11y`,
-`saccade-geo`, then `saccade`. The tag workflow checks and authenticates each
+Publish in dependency order: `saccade-core`, `saccade-print`, `saccade-geo`,
+`saccade-a11y`, then `saccade`. The tag workflow checks and authenticates each
 crate separately. Include the accessibility extension in workspace hygiene,
 package README inventory and guide validation; local tests do not prove publication.

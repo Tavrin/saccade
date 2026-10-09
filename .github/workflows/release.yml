@@ -387,8 +387,8 @@ jobs:
           workspace = tomllib.loads(pathlib.Path('Cargo.toml').read_text())
           if workspace['workspace']['package']['version'] != version:
               raise SystemExit('::error::Tag and workspace versions differ')
-          for crate, output in [('saccade-core', 'core'), ('saccade-print', 'print'), ('saccade-a11y', 'a11y'),
-                                ('saccade-geo', 'geo'), ('saccade', 'cli')]:
+          for crate, output in [('saccade-core', 'core'), ('saccade-print', 'print'), ('saccade-geo', 'geo'),
+                                ('saccade-a11y', 'a11y'), ('saccade', 'cli')]:
               manifest = tomllib.loads(pathlib.Path(f'crates/{crate}/Cargo.toml').read_text())
               package_version = manifest['package']['version']
               if package_version != version and package_version != {'workspace': True}:
@@ -434,15 +434,6 @@ jobs:
         env:
           CARGO_REGISTRY_TOKEN: ${{ steps.print-auth.outputs.token }}
         run: cargo publish --locked --registry crates-io -p saccade-print
-      - name: Authenticate for saccade-a11y
-        if: steps.versions.outputs.a11y == 'true'
-        id: a11y-auth
-        uses: rust-lang/crates-io-auth-action@v1.0.5
-      - name: Publish saccade-a11y
-        if: steps.versions.outputs.a11y == 'true'
-        env:
-          CARGO_REGISTRY_TOKEN: ${{ steps.a11y-auth.outputs.token }}
-        run: cargo publish --locked --registry crates-io -p saccade-a11y
       - name: Authenticate for saccade-geo
         if: steps.versions.outputs.geo == 'true'
         id: geo-auth
@@ -452,6 +443,15 @@ jobs:
         env:
           CARGO_REGISTRY_TOKEN: ${{ steps.geo-auth.outputs.token }}
         run: cargo publish --locked --registry crates-io -p saccade-geo
+      - name: Authenticate for saccade-a11y
+        if: steps.versions.outputs.a11y == 'true'
+        id: a11y-auth
+        uses: rust-lang/crates-io-auth-action@v1.0.5
+      - name: Publish saccade-a11y
+        if: steps.versions.outputs.a11y == 'true'
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ steps.a11y-auth.outputs.token }}
+        run: cargo publish --locked --registry crates-io -p saccade-a11y
       - name: Authenticate for saccade
         if: steps.versions.outputs.cli == 'true'
         id: cli-auth

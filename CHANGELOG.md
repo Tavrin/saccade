@@ -1,50 +1,60 @@
 # Changelog
 
-## Unreleased
+## 0.3.0 — 2026-10-09
 
-- Add Rust `saccade_core::workflows` entry points for stock compare/exact proof,
-  approval drafting/application and explicit signed verification policy, history,
-  manifest coverage, batch intake, review and screenshot ingest. CLI adapters
-  retain established outputs and startup authority. This 0.x change is additive:
-  existing core functions, command names and report schemas are unchanged.
-  Embed the previously CLI-only screenshot intake and mapping schemas so Rust
-  schema discovery covers these existing contracts. See `docs/library.md` for
-  the complete command audit and deferred orchestration.
-- Improve automatic accessibility stroke-core bounds and letter-body size estimates;
-  warn about thin rendering when source-colour contrast passes. Detect wide rounded
-  input outlines and filled controls containing text, with separate boundary checks.
-- `a11y auto` now exits 4 (insufficient evidence) for UNMEASURABLE runs,
-  including images with no detected text. Completed MCP analyses remain non-errors;
+### Breaking
+
+- Accessibility policy moved from `saccade_core::a11y` →
+  `saccade_a11y::a11y`. Automatic policy lives in `saccade_a11y::auto`
+  (also `saccade_a11y::run`); contrast ratio and the component-local estimator
+  live in `saccade_core::contrast`. Accessibility thresholds moved from the
+  core safety table into the extension. Text-quality, colour simulation and
+  OCR detection remain in core.
+- Declared-region contrast values can change because shared contrast estimation
+  now uses local background rings and supported stroke-core colours instead of
+  region-wide two-cluster medians.
+- `a11y auto` exits 4 (insufficient evidence) for UNMEASURABLE runs, including
+  images with no detected text. Completed MCP analyses remain non-errors;
   declared-region `experiment a11y` exit codes are unchanged.
 
-- Add required per-criterion automatic accessibility summaries with counts and worst
-  region references in JSON, text, MCP and five JUnit testcases per image. Measured
-  results determine image/run verdicts; unverified glyph completeness is a limitation.
-  PASS names its detected-region scope.
+### Added
 
-- Prevent strong ink from hiding weak components/colours, and measure each component
-  against its local background. Thin strokes below threshold abstain only for WCAG source-colour verdicts;
-  rendered legibility measures the displayed pixels and can FAIL.
-  Unknown display scale applies normal-text thresholds; CLI and MCP use the same
-  default provisioned OCR cache. Automatic schema requires positive PASS evidence.
-  Text-quality and critical-text consumers measure rendered contrast separately
-  from source colour. Explicit scale uses robust letter height; fallback line
-  grouping handles ascenders and descenders. Missing OCR reports model pull actions.
-
-- Add offline `a11y auto IMAGE|DIR --out DIR`, typed library checks and deterministic
-  MCP `saccade_measure` operation `a11y_auto`: pinned provisioned PaddleOCR detection,
+- Add the first-party `saccade-a11y` crate and offline
+  `a11y auto IMAGE|DIR --out DIR`, typed library checks and deterministic MCP
+  `saccade_measure` operation `a11y_auto`: pinned provisioned PaddleOCR detection,
   model-free text/UI candidates, contrast, pixel legibility, tofu and colour loss.
-  Missing detections and ambiguous evidence remain explicit, with skipped JUnit cases.
-- **0.x breaking library change:** accessibility policy moved from
-  `saccade_core::a11y` to `saccade_a11y::a11y`; automatic policy is
-  `saccade_a11y::auto` (also `saccade_a11y::run`). Contrast ratio and the component-local
-  estimator are `saccade_core::contrast`; text-quality, colour simulation and OCR
-  detection remain in core. Accessibility threshold entries moved out of the core
-  safety table into the extension; declared-region contrast values can change: local background rings and supported
-  stroke-core colours replace region-wide two-cluster medians.
-- Publish the first-party `saccade-a11y` extension between core and CLI, with
-  permanent generated anti-aliased font, mixed-ink, local-backing and boundary
-  regression evaluation; this finite corpus does not prove cross-domain coverage.
+  Missing detections and ambiguous evidence remain explicit, with skipped JUnit
+  cases. Generated anti-aliased font, mixed-ink, local-backing and boundary
+  regression checks cover a finite corpus, not general cross-domain accuracy.
+- Add per-criterion automatic accessibility summaries with counts and worst
+  region references in JSON, text, MCP and five JUnit testcases per image.
+  Measured results determine image/run verdicts; unverified glyph completeness
+  is a limitation. PASS names its detected-region scope.
+- Add Rust `saccade_core::workflows` entry points for stock compare/exact proof,
+  approval drafting/application and explicit signed verification policy, history,
+  manifest coverage, batch intake, review and screenshot ingest. Existing core
+  functions, command names and report schemas are unchanged. Embed the previously
+  CLI-only screenshot intake and mapping schemas for Rust schema discovery.
+  See `docs/library.md` for the command audit and deferred orchestration.
+
+### Changed
+
+- Text-quality and critical-text consumers measure rendered contrast separately
+  from source colour. Thin strokes below threshold abstain only for WCAG
+  source-colour verdicts; rendered legibility measures displayed pixels and can FAIL.
+- Unknown display scale applies normal-text thresholds. Explicit scale uses
+  robust letter height; fallback line grouping handles ascenders and descenders.
+  CLI and MCP use the same default provisioned OCR cache; missing OCR reports
+  model pull actions. The automatic schema requires positive PASS evidence.
+
+### Fixed
+
+- Prevent strong ink from hiding weak components or colours; measure each
+  component against its local background.
+- Improve automatic accessibility stroke-core bounds and letter-body size
+  estimates; warn about thin rendering when source-colour contrast passes.
+  Detect wide rounded input outlines and filled controls containing text, with
+  separate boundary checks.
 
 ## 0.2.10 (2026-10-07)
 

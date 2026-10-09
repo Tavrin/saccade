@@ -16,7 +16,7 @@ png = (b"\x89PNG\r\n\x1a\n"
        + chunk(b"IHDR", struct.pack(">IIBBBBB", 40, 30, 8, 2, 0, 0, 0))
        + chunk(b"IDAT", zlib.compress((b"\0" + bytes([20, 40, 70]) * 40) * 30))
        + chunk(b"IEND", b""))
-assert saccade.__version__ == version("saccade-vision") == "0.2.10"
+assert saccade.__version__ == version("saccade-vision") == "0.3.0"
 analyzer = saccade.Analyzer(profile="cpu-lite", allow_download=False)
 record = analyzer.analyze_media(png)
 assert record["schema"] == "saccade-media-record.v1"

@@ -162,7 +162,7 @@ frames described by a [frame map](docs/frame-map.md).
 Install with Rust 1.89 or newer:
 
 ```sh
-cargo install saccade --version 0.2.10 --locked
+cargo install saccade --version 0.3.0 --locked
 saccade doctor --json
 ```
 
@@ -189,6 +189,23 @@ Video extraction invokes external `ffmpeg` and `ffprobe`; neither is bundled.
 See [model/runtime provisioning](docs/wave7.md) and [AVIF prerequisites](docs/imgtune.md#system-prerequisites).
 Default comparisons need no provider account or GPU. Add optional features with
 `cargo install ... --features products,ocr`, for example.
+
+## Crates
+
+| Crate | Purpose |
+| --- | --- |
+| `saccade-core` | Shared image measurements, evidence contracts and Rust workflows. |
+| `saccade-print` | ICC-managed print raster comparisons and diagnostics. |
+| `saccade-geo` | Native TIFF measurements with grid and nodata metadata. |
+| `saccade-a11y` | Declared-region and automatic accessibility checks. |
+| `saccade` | Command-line interface and MCP server. |
+| `saccade-py` | Python bindings for shared measurements. |
+
+With the `prechecks` feature, run automatic accessibility checks offline:
+
+```sh
+saccade a11y auto screenshot.png --out accessibility-report
+```
 
 ## Metrics and algorithms
 
