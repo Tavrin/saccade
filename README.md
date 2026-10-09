@@ -197,11 +197,12 @@ Default comparisons need no provider account or GPU. Add optional features with
 | `saccade-core` | Shared image measurements, evidence contracts and Rust workflows. |
 | `saccade-print` | ICC-managed print raster comparisons and diagnostics. |
 | `saccade-geo` | Native TIFF measurements with grid and nodata metadata. |
-| `saccade-a11y` | Declared-region and automatic accessibility checks. |
+| `saccade-a11y` | Accessibility pre-checks on declared regions or on regions it finds itself. |
 | `saccade` | Command-line interface and MCP server. |
 | `saccade-py` | Python bindings for shared measurements. |
 
-With the `prechecks` feature, run automatic accessibility checks offline:
+With the `prechecks` feature, `a11y auto` finds text and UI regions in an image
+and checks them, offline:
 
 ```sh
 saccade a11y auto screenshot.png --out accessibility-report
