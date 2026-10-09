@@ -219,6 +219,36 @@ fn video_metadata_and_missing_optional_ffmpeg() {
 }
 
 #[test]
+fn automatic_cli_no_text_exits_insufficient_evidence() {
+    let tmp = tempfile::tempdir().unwrap();
+    let input = tmp.path().join("blank.png");
+    image::RgbImage::from_pixel(80, 50, image::Rgb([255; 3]))
+        .save(&input)
+        .unwrap();
+    let result = cli(&[
+        "a11y",
+        "auto",
+        input.to_str().unwrap(),
+        "--out",
+        tmp.path().join("report").to_str().unwrap(),
+        "--json",
+    ]);
+    assert_eq!(result.status.code(), Some(4), "{result:?}");
+    let value: Value = serde_json::from_slice(&result.stdout).unwrap();
+    assert_eq!(value["data"]["verdict"], "UNMEASURABLE");
+    let report: Value = serde_json::from_slice(
+        &std::fs::read(tmp.path().join("report/saccade-auto-a11y.v1.json")).unwrap(),
+    )
+    .unwrap();
+    assert!(
+        report["images"][0]["text_detection"]
+            .as_str()
+            .unwrap()
+            .starts_with("no text detected")
+    );
+}
+
+#[test]
 fn automatic_cli_directory_schema_junit_and_mcp_mirror() {
     let tmp = tempfile::tempdir().unwrap();
     let root = tmp.path();
@@ -257,7 +287,7 @@ fn automatic_cli_directory_schema_junit_and_mcp_mirror() {
     ]);
     assert_eq!(
         result.status.code(),
-        Some(0),
+        Some(4),
         "{}",
         String::from_utf8_lossy(&result.stderr)
     );
@@ -314,7 +344,11 @@ fn automatic_cli_directory_schema_junit_and_mcp_mirror() {
         .lines()
         .map(|s| serde_json::from_str(s).unwrap())
         .collect();
-    assert_ne!(replies[0]["result"]["isError"], true, "{}", replies[0]);
+    assert_eq!(replies[0]["result"]["isError"], false, "{}", replies[0]);
+    assert_eq!(
+        replies[0]["result"]["structuredContent"]["data"]["verdict"],
+        "UNMEASURABLE"
+    );
     assert_eq!(replies[1]["result"]["isError"], true);
     let artifact: Value = serde_json::from_slice(
         &std::fs::read(outputs.path().join("automatic/saccade-auto-a11y.v1.json")).unwrap(),

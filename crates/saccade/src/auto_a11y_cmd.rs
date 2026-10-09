@@ -77,9 +77,11 @@ pub(crate) fn run(args: Args) -> Result<u8, CliError> {
     } else {
         crate::emit(&report.text())?;
     }
-    Ok(u8::from(
-        report.verdict == saccade_a11y::auto::Verdict::Fail,
-    ))
+    Ok(match report.verdict {
+        saccade_a11y::auto::Verdict::Pass | saccade_a11y::auto::Verdict::Warn => 0,
+        saccade_a11y::auto::Verdict::Fail => 1,
+        saccade_a11y::auto::Verdict::Unmeasurable => 4,
+    })
 }
 
 /// Common CLI/MCP transport: summary in data, full region evidence in the artifact.

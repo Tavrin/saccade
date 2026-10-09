@@ -2,10 +2,14 @@
 
 ## Unreleased
 
+- `a11y auto` now exits 4 (insufficient evidence) for UNMEASURABLE runs,
+  including images with no detected text. Completed MCP analyses remain non-errors;
+  declared-region `experiment a11y` exit codes are unchanged.
+
 - Add required per-criterion automatic accessibility summaries with counts and worst
   region references in JSON, text, MCP and five JUnit testcases per image. Measured
   results determine image/run verdicts; unverified glyph completeness is a limitation.
-  PASS names its detected-region scope. Existing non-failure exit codes are retained.
+  PASS names its detected-region scope.
 
 - Prevent strong ink from hiding weak components/colours, and measure each component
   against its local background. Thin strokes below threshold abstain only for WCAG source-colour verdicts;

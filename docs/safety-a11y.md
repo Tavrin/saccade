@@ -260,7 +260,7 @@ any overlapping automatic candidate. Automatic results always carry
 `provenance: auto_detected`, detector identity, uncalibrated confidence and pixel
 boxes. `saccade-auto-a11y.v1.json`, text and HTML retain the full evidence and the
 existing six colour-vision simulation artifacts. CLI exits: PASS 0, FAIL 1, WARN 0,
-UNMEASURABLE 0 (the existing completed-analysis codes), invalid input or exhausted
+UNMEASURABLE 4 (insufficient evidence), invalid input or exhausted
 analysis budget 2. Exit 0 alone does not establish measured PASS; inspect the
 summary or apply your CI policy to JUnit evidence.
 
