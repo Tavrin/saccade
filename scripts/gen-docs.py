@@ -14,6 +14,31 @@ ROOT = Path(__file__).resolve().parents[1]
 PACK_HEADER = '<!-- Generated from integrations/agent-guide.md by scripts/gen-docs.py. -->\n'
 
 
+# Crate-local compile-time fixtures retain one checked source of truth.
+PACKAGE_COPIES = {
+    'crates/saccade-core/tests/fixtures/package/examples/gpu-clock/map.toml':
+        'examples/gpu-clock/map.toml',
+    'crates/saccade-core/tests/fixtures/package/testdata/sample-report/saccade-report.v1.json':
+        'testdata/sample-report/saccade-report.v1.json',
+    'crates/saccade/tests/fixtures/package/action.yml':
+        'action.yml',
+    'crates/saccade/tests/fixtures/package/crates/saccade-core/schemas/saccade-arms-check.v1.schema.json':
+        'crates/saccade-core/schemas/saccade-arms-check.v1.schema.json',
+    'crates/saccade/tests/fixtures/package/crates/saccade-core/schemas/saccade-document-text.v2.schema.json':
+        'crates/saccade-core/schemas/saccade-document-text.v2.schema.json',
+    'crates/saccade/tests/fixtures/package/crates/saccade-core/tests/fixtures/perf/context.json':
+        'crates/saccade-core/tests/fixtures/perf/context.json',
+    'crates/saccade/tests/fixtures/package/github/workflows/example-update-baselines.yml':
+        '.github/workflows/example-update-baselines.yml',
+    'crates/saccade/tests/fixtures/package/github/workflows/example-usage.yml':
+        '.github/workflows/example-usage.yml',
+    'crates/saccade/tests/fixtures/package/gpu-clock-source.txt':
+        'crates/saccade-core/src/gpu_clock.rs',
+    'docs/library.md':
+        'crates/saccade-core/src/workflows/library.md',
+}
+
+
 def replace_section(text, name, content):
     start, end = f'<!-- {name}:start -->', f'<!-- {name}:end -->'
     before, rest = text.split(start, 1)
@@ -39,6 +64,12 @@ def generated(binary=None, allow_missing_imgtune_avif=False, preserve_all_featur
     for name, body in packs.items():
         if len(body.encode()) > 4800:
             raise ValueError(f'{name}: exceeds estimated 1200-token budget (4800 UTF-8 bytes)')
+    for destination, source in PACKAGE_COPIES.items():
+        packs[destination] = (ROOT / source).read_text(encoding='utf-8')
+        if destination == 'docs/library.md':
+            packs[destination] = ('<!-- Generated from ' + source
+                                  + ' by scripts/gen-docs.py; edit the canonical source. -->\n\n'
+                                  + packs[destination])
     manifests = sorted((ROOT / 'showcases').glob('*/commands.json'))
     count = len(manifests)
     packs['README.md'] = replace_section((ROOT / 'README.md').read_text(encoding="utf-8"), 'showcase-count',

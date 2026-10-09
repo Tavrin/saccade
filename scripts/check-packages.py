@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
 """Reject unintended material and README drift in crates.io source archives."""
 import json
+import posixpath
 import re
 import subprocess
 import tarfile
 import tomllib
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 
 ROOT = Path(__file__).resolve().parents[1]
 READMES = {
@@ -24,6 +25,8 @@ COMPRESSION_IMAGES = {f'tests/fixtures/compression-reference/{name}.png'
 
 TRUSTMARK_IMAGES = {f'tests/fixtures/trustmark/schema-{schema}-payload-{payload}.png'
                     for schema in range(4) for payload in range(2)}
+A11Y_IMAGES = {f'tests/fixtures/{name}.png' for name in (
+    'mixed-red', 'mixed-strokes', 'local-background-245', 'mostly-low-ui', 'real-font-dpr2')}
 PRINT_IMAGES = {'tests/fixtures/constant-cmyk.jpg'}
 
 
@@ -31,6 +34,7 @@ def approved_image(crate, path):
     """Only explicit demo and project-authored reference image inventories ship."""
     return ((crate == 'saccade' and path.startswith('assets/demo/'))
             or (crate == 'saccade-core' and path in COMPRESSION_IMAGES | TRUSTMARK_IMAGES)
+            or (crate == 'saccade-a11y' and path in A11Y_IMAGES)
             or (crate == 'saccade-print' and path in PRINT_IMAGES))
 
 
@@ -92,6 +96,18 @@ def main():
             if path.endswith(('.png', '.jpg', '.jpeg', '.gif', '.webp')):
                 assert approved_image(crate, path), (crate, path)
         archive = Path(metadata['target_directory']) / 'package' / f"{crate}-{package['version']}.crate"
+        with tarfile.open(archive, 'r:gz') as contents:
+            prefix = f"{crate}-{package['version']}/"
+            members = set(contents.getnames())
+            for member in contents.getmembers():
+                if not member.name.endswith('.rs'):
+                    continue
+                source = contents.extractfile(member).read().decode()
+                for match in re.finditer(r'include_(?:str|bytes)!\(\s*"([^"]+)"', source):
+                    path = PurePosixPath(member.name).parent / match[1]
+                    confined = posixpath.normpath(str(path))
+                    assert confined.startswith(prefix), (crate, member.name, 'include escapes crate', match[1])
+                    assert confined in members, (crate, member.name, 'include absent', match[1])
         if crate == 'saccade-core':
             notice = 'assets/licenses/daltonlens-MIT.txt'
             with tarfile.open(archive, 'r:gz') as contents:

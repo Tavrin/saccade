@@ -14,5 +14,13 @@
   {
     "path": "crates/saccade-core/src/gpu_clock.rs",
     "sha256": "863051520ddb239a02ae0f8c46225ffdb754fd69929a1d7b8cb15fb3155e7fc0"
+  },
+  {
+    "path": "crates/saccade/tests/fixtures/package/gpu-clock-source.txt",
+    "sha256": "00205d4769649996c324a30e3449c4488d118025d5e1f8ecd150901b5ceae1fc"
+  },
+  {
+    "path": "crates/saccade/tests/fixtures/package/gpu-clock-source.txt",
+    "sha256": "863051520ddb239a02ae0f8c46225ffdb754fd69929a1d7b8cb15fb3155e7fc0"
   }
 ]

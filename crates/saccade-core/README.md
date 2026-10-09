@@ -108,5 +108,5 @@ option. The `flip-rs` dependency is BSD-3-Clause; see the repository's
 [third-party notices](https://github.com/Tavrin/saccade/blob/main/THIRD_PARTY.md).
 
 Command-level artifact writing and explicit approval policies are available through
-`workflows`. See the [Rust library guide](../../docs/library.md) for compiled examples
+`workflows`. See the [Rust library guide](src/workflows/library.md) for compiled examples
 and a complete CLI-to-library audit.

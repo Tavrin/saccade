@@ -103,7 +103,7 @@ fn single_repeat_table_shows_n_and_unavailable_spread() {
 fn legacy_clock_warning_once_per_command_with_repeated_reads() {
     let tmp = tempfile::tempdir().unwrap();
     // Get the existing compatibility identifier from its reader; the fixture carries no producer names.
-    let source = include_str!("../../saccade-core/src/gpu_clock.rs");
+    let source = include_str!("fixtures/package/gpu-clock-source.txt");
     let schema = source
         .lines()
         .find(|l| l.contains("gpu-clock.v2\" =>"))

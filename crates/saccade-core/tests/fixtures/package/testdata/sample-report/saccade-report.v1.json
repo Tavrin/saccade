@@ -1,0 +1,233 @@
+{
+  "schema": "saccade-report.v1",
+  "tool_version": "0.1.0",
+  "generated_at_unix": 1790851200,
+  "config": {
+    "default_threshold": 0.01,
+    "default_metric": "mean",
+    "pixels_per_degree": 67.0,
+    "fail_on_new": false
+  },
+  "totals": {
+    "total": 8,
+    "pass": 2,
+    "fail": 3,
+    "new": 1,
+    "missing": 1,
+    "error": 1
+  },
+  "entries": [
+    {
+      "name": "gi/cornell-box.png",
+      "status": "fail",
+      "metric_used": "mean",
+      "threshold": 0.01,
+      "value": 0.4412,
+      "metrics": {
+        "mean": 0.4412,
+        "max": 0.965,
+        "p50": 0.17648,
+        "p95": 0.812,
+        "p99": 0.8885,
+        "frac_above_0_1": 0.406,
+        "frac_above_0_5": 0.0772,
+        "width": 128,
+        "height": 80
+      },
+      "properties": {
+        "is_all_black": true,
+        "is_all_white": false,
+        "mean_luminance": 0.0,
+        "min_luminance": 0.0,
+        "max_luminance": 0.0
+      },
+      "paths": {
+        "baseline": "images/gi/cornell-box.png/baseline.png",
+        "capture": "images/gi/cornell-box.png/capture.png",
+        "heatmap": "images/gi/cornell-box.png/heatmap.png"
+      },
+      "error": null
+    },
+    {
+      "name": "lighting/shadow-shift.png",
+      "status": "fail",
+      "metric_used": "mean",
+      "threshold": 0.01,
+      "value": 0.0437,
+      "metrics": {
+        "mean": 0.0437,
+        "max": 0.6012,
+        "p50": 0.01748,
+        "p95": 0.2104,
+        "p99": 0.4058,
+        "frac_above_0_1": 0.1052,
+        "frac_above_0_5": 0.0481,
+        "width": 128,
+        "height": 80
+      },
+      "properties": {
+        "is_all_black": false,
+        "is_all_white": false,
+        "mean_luminance": 0.2438,
+        "min_luminance": 0.0703,
+        "max_luminance": 0.7146
+      },
+      "paths": {
+        "baseline": "images/lighting/shadow-shift.png/baseline.png",
+        "capture": "images/lighting/shadow-shift.png/capture.png",
+        "heatmap": "images/lighting/shadow-shift.png/heatmap.png"
+      },
+      "error": null
+    },
+    {
+      "name": "materials/brick.png",
+      "status": "pass",
+      "metric_used": "mean",
+      "threshold": 0.01,
+      "value": 0.0012,
+      "metrics": {
+        "mean": 0.0012,
+        "max": 0.031,
+        "p50": 0.00048,
+        "p95": 0.004,
+        "p99": 0.0175,
+        "frac_above_0_1": 0.002,
+        "frac_above_0_5": 0.0025,
+        "width": 128,
+        "height": 80
+      },
+      "properties": {
+        "is_all_black": false,
+        "is_all_white": false,
+        "mean_luminance": 0.4393,
+        "min_luminance": 0.3845,
+        "max_luminance": 0.5877
+      },
+      "paths": {
+        "baseline": "images/materials/brick.png/baseline.png",
+        "capture": "images/materials/brick.png/capture.png",
+        "heatmap": "images/materials/brick.png/heatmap.png"
+      },
+      "error": null
+    },
+    {
+      "name": "particles/smoke.png",
+      "status": "missing",
+      "metric_used": "mean",
+      "threshold": 0.01,
+      "value": null,
+      "metrics": null,
+      "properties": null,
+      "paths": {
+        "baseline": "images/particles/smoke.png/baseline.png",
+        "capture": null,
+        "heatmap": null
+      },
+      "error": null
+    },
+    {
+      "name": "postfx/bloom.png",
+      "status": "error",
+      "metric_used": "mean",
+      "threshold": 0.01,
+      "value": null,
+      "metrics": null,
+      "properties": {
+        "is_all_black": false,
+        "is_all_white": false,
+        "mean_luminance": 0.4432,
+        "min_luminance": 0.0908,
+        "max_luminance": 0.9424
+      },
+      "paths": {
+        "baseline": "images/postfx/bloom.png/baseline.png",
+        "capture": "images/postfx/bloom.png/capture.png",
+        "heatmap": null
+      },
+      "error": "dimensions differ: capture is 96x80, baseline is 128x80"
+    },
+    {
+      "name": "sky/atmosphere.png",
+      "status": "pass",
+      "metric_used": "p95",
+      "threshold": 0.05,
+      "value": 0.0118,
+      "metrics": {
+        "mean": 0.0031,
+        "max": 0.0402,
+        "p50": 0.00124,
+        "p95": 0.0118,
+        "p99": 0.026,
+        "frac_above_0_1": 0.0059,
+        "frac_above_0_5": 0.0032,
+        "width": 128,
+        "height": 80
+      },
+      "properties": {
+        "is_all_black": false,
+        "is_all_white": false,
+        "mean_luminance": 0.5228,
+        "min_luminance": 0.3429,
+        "max_luminance": 0.7927
+      },
+      "paths": {
+        "baseline": "images/sky/atmosphere.png/baseline.png",
+        "capture": "images/sky/atmosphere.png/capture.png",
+        "heatmap": "images/sky/atmosphere.png/heatmap.png"
+      },
+      "error": null
+    },
+    {
+      "name": "terrain/heightfield.png",
+      "status": "fail",
+      "metric_used": "p95",
+      "threshold": 0.15,
+      "value": 0.2113,
+      "metrics": {
+        "mean": 0.0381,
+        "max": 0.7733,
+        "p50": 0.01524,
+        "p95": 0.2113,
+        "p99": 0.4923,
+        "frac_above_0_1": 0.1056,
+        "frac_above_0_5": 0.0619,
+        "width": 128,
+        "height": 80
+      },
+      "properties": {
+        "is_all_black": false,
+        "is_all_white": false,
+        "mean_luminance": 0.4293,
+        "min_luminance": 0.2007,
+        "max_luminance": 0.7566
+      },
+      "paths": {
+        "baseline": "images/terrain/heightfield.png/baseline.png",
+        "capture": "images/terrain/heightfield.png/capture.png",
+        "heatmap": "images/terrain/heightfield.png/heatmap.png"
+      },
+      "error": null
+    },
+    {
+      "name": "ui/hud minimap #2.png",
+      "status": "new",
+      "metric_used": "mean",
+      "threshold": 0.01,
+      "value": null,
+      "metrics": null,
+      "properties": {
+        "is_all_black": false,
+        "is_all_white": false,
+        "mean_luminance": 0.1614,
+        "min_luminance": 0.1087,
+        "max_luminance": 0.6447
+      },
+      "paths": {
+        "baseline": null,
+        "capture": "images/ui/hud minimap #2.png/capture.png",
+        "heatmap": null
+      },
+      "error": null
+    }
+  ]
+}

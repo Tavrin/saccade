@@ -47,7 +47,7 @@ fn save(root: &Path, name: &str, pass: f64, grey: u8) -> PathBuf {
         .save(dir.join("scene.png"))
         .unwrap();
     let mut context: Value = serde_json::from_str(include_str!(
-        "../../saccade-core/tests/fixtures/perf/context.json"
+        "fixtures/package/crates/saccade-core/tests/fixtures/perf/context.json"
     ))
     .unwrap();
     context["capture_hash"] = json!(saccade_core::evidence::canonical::Digest::of_bytes(

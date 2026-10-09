@@ -71,6 +71,32 @@ class CompiledFeatures(unittest.TestCase):
             self.generate(features, True)
 
 
+class PackageCopies(unittest.TestCase):
+    def test_guide_and_compile_time_fixtures_match_canonical_sources(self):
+        generated = gen_docs.generated()
+        self.assertEqual(gen_docs.PACKAGE_COPIES['docs/library.md'],
+                         'crates/saccade-core/src/workflows/library.md')
+        for destination, source in gen_docs.PACKAGE_COPIES.items():
+            self.assertTrue(generated[destination].endswith(
+                             (gen_docs.ROOT / source).read_text(encoding='utf-8')))
+
+    def test_check_rejects_guide_drift(self):
+        with patch.object(gen_docs, 'generated', return_value={
+                'docs/library.md': 'canonical guide\n'}):
+            with tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                (root / 'docs').mkdir()
+                guide = root / 'docs/library.md'
+                guide.write_text('stale guide\n')
+                with patch.object(gen_docs, 'ROOT', root), \
+                        patch('sys.argv', ['gen-docs.py', '--check']), \
+                        redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()):
+                    with self.assertRaises(SystemExit) as result:
+                        gen_docs.main()
+                self.assertEqual(result.exception.code, 1)
+                self.assertEqual(guide.read_text(), 'stale guide\n')
+
+
 class CheckDiffs(unittest.TestCase):
     def check(self, existing, generated):
         with tempfile.TemporaryDirectory() as directory:

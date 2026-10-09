@@ -235,7 +235,10 @@ mod tests {
     use serde_json::json;
 
     fn example() -> ClockMap {
-        toml::from_str(include_str!("../../../../examples/gpu-clock/map.toml")).unwrap()
+        toml::from_str(include_str!(
+            "../../tests/fixtures/package/examples/gpu-clock/map.toml"
+        ))
+        .unwrap()
     }
     fn record() -> Value {
         json!({"device":{"uuid":"GPU-1","name":"fallback"},"sample_windows":[{"name":"frame","sm_mhz":{"min":1790,"p50":1800,"max":1810},"memory_mhz":{"min":6000,"p50":6000,"max":6000},"sample_count":32,"expected_frames":2,"frames":[{"query_failures":1},{"query_failures":2}],"throttle_reasons":0,"warm_to_boost":{"met":true}}]})
@@ -289,7 +292,7 @@ mod tests {
         let toml_path = temp.path().join("map.toml");
         std::fs::write(
             &toml_path,
-            include_str!("../../../../examples/gpu-clock/map.toml"),
+            include_str!("../../tests/fixtures/package/examples/gpu-clock/map.toml"),
         )
         .unwrap();
         assert_eq!(

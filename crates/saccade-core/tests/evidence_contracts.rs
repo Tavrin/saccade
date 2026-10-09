@@ -565,7 +565,7 @@ fn reserved_automated_authority_is_readable_distinct_and_never_human() {
 
 #[test]
 fn historical_report_and_receipt_fixtures_remain_readable() {
-    let report = include_bytes!("../../../testdata/sample-report/saccade-report.v1.json");
+    let report = include_bytes!("fixtures/package/testdata/sample-report/saccade-report.v1.json");
     let archived = HistoricalArtifact::from_bytes(report).unwrap();
     assert_eq!(archived.schema, "saccade-report.v1");
     assert_eq!(archived.raw["tool_version"], "0.1.0");

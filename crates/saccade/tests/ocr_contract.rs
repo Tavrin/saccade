@@ -74,7 +74,7 @@ fn selected_provider_maps_pdf_and_image_fixtures_without_credentials_and_rejects
         )
         .unwrap();
         let schema: Value = serde_json::from_str(include_str!(
-            "../../saccade-core/schemas/saccade-document-text.v2.schema.json"
+            "fixtures/package/crates/saccade-core/schemas/saccade-document-text.v2.schema.json"
         ))
         .unwrap();
         jsonschema::validator_for(&schema)

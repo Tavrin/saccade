@@ -2,7 +2,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, missing_docs)]
 
 fn step(name: &str) -> &'static str {
-    include_str!("../../../action.yml")
+    include_str!("fixtures/package/action.yml")
         .split(&format!("    - name: {name}\n"))
         .nth(1)
         .unwrap()
@@ -12,9 +12,9 @@ fn step(name: &str) -> &'static str {
 }
 #[test]
 fn fork_workflow_has_read_only_permissions_and_stable_outputs() {
-    let usage = include_str!("../../../.github/workflows/example-usage.yml");
-    let update = include_str!("../../../.github/workflows/example-update-baselines.yml");
-    let action = include_str!("../../../action.yml");
+    let usage = include_str!("fixtures/package/github/workflows/example-usage.yml");
+    let update = include_str!("fixtures/package/github/workflows/example-update-baselines.yml");
+    let action = include_str!("fixtures/package/action.yml");
     assert!(
         usage.contains("  pull_request:\n") && usage.contains("permissions:\n  contents: read\n")
     );
@@ -435,7 +435,7 @@ chmod +x "$2/bin/saccade""#,
         code(&f.run("Export JUnit", &[]), 0);
         let xml = std::fs::read_to_string(f.root.join("report/junit.xml")).unwrap();
         assert!(xml.contains("<testsuite") && xml.contains("<failure"));
-        let a = include_str!("../../../action.yml");
+        let a = include_str!("fixtures/package/action.yml");
         assert!(a.find("- name: Export JUnit").unwrap() < a.find("- name: Upload report").unwrap());
         assert!(
             a.find("- name: Upload report").unwrap()

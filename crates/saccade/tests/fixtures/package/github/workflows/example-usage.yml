@@ -1,0 +1,46 @@
+name: Example usage
+# The procedural examples contain deliberate regressions; the Action must report them.
+# A consuming repository can use Tavrin/saccade@v1 once released, with binary
+# installation. This unreleased local checkout explicitly selects source.
+on:
+  pull_request:
+    paths: [action.yml, '.github/workflows/example-usage.yml', 'examples/baseline/**', 'examples/capture/**']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  example:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@7e38f4b43b4db5c8dd498af069a4f6196df1d067 # stable
+        # Install the stable Rust channel.
+        with:
+          toolchain: stable
+      - uses: ./
+        id: comparison
+        continue-on-error: true
+        with:
+          install-mode: source
+          baseline-dir: examples/baseline
+          capture-dir: examples/capture
+          report-dir: saccade-report
+          comment: 'false'
+      - name: Verify expected regression and report
+        if: ${{ always() }}
+        env:
+          OUTCOME: ${{ steps.comparison.outcome }}
+          VERDICT: ${{ steps.comparison.outputs.verdict }}
+          EXIT_CODE: ${{ steps.comparison.outputs.exit-code }}
+          REPORT_URL: ${{ steps.comparison.outputs.report-url }}
+          ARTIFACT_ID: ${{ steps.comparison.outputs.artifact-id }}
+        run: |
+          test "$OUTCOME" = failure
+          test "$VERDICT" = fail
+          test "$EXIT_CODE" = 1
+          test -n "$REPORT_URL"
+          test -n "$ARTIFACT_ID"

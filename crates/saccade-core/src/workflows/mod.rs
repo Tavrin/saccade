@@ -1,4 +1,4 @@
-#![doc = include_str!("../../../../docs/library.md")]
+#![doc = include_str!("library.md")]
 
 //! Command-level orchestration for Rust callers.
 //!

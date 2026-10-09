@@ -1,5 +1,3 @@
-<!-- Generated from crates/saccade-core/src/workflows/library.md by scripts/gen-docs.py; edit the canonical source. -->
-
 # Rust library workflows
 
 Saccade 0.2.9 exposes image measurements through `saccade-core`. The additive
