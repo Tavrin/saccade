@@ -16,28 +16,39 @@ cargo = tomllib.loads((ROOT / 'crates/saccade/Cargo.toml').read_text())['feature
 core = tomllib.loads((ROOT / 'crates/saccade-core/Cargo.toml').read_text())['features']
 
 assert config['bundles']['default']['asset'] == 'saccade-{target}', 'legacy asset name must keep publishing'
+
+def feature_closure(graph, features):
+    """Resolve features in one package, without dependency feature unification."""
+    actual = set()
+    def enable(feature):
+        if feature in actual or feature not in graph:
+            return
+        actual.add(feature)
+        for child in graph[feature]:
+            enable(child)
+    for feature in features:
+        enable(feature)
+    return actual - {'default'}
+
+# CLI cfgs and discovery must include the public implications of forwarded core
+# features. Otherwise OCR's runtime provisioning is disabled even though core
+# compiled the runtime. Check individual roots too: Full masks missing edges by
+# explicitly requesting both embeddings/semantic-regions and ocr/local-models.
+for feature in cargo:
+    cli_features = feature_closure(cargo, [feature])
+    forwarded = [child.split('/', 1)[1]
+                 for enabled in cli_features
+                 for child in cargo[enabled]
+                 if child.startswith('saccade-core/')]
+    implied = feature_closure(core, forwarded) & cargo.keys()
+    assert implied <= cli_features, (feature, 'missing CLI implications', implied - cli_features)
+
 for name, spec in config['bundles'].items():
     for feature in spec['features']:
         assert feature in cargo, f'{name}: {feature} is not a saccade Cargo feature'
         assert feature not in config['excluded_everywhere'], f'{name} enables an excluded feature'
-    # Resolve local Cargo feature edges, including defaults and implied local-models.
-    actual = set()
-    visited = set()
-    def enable(feature, package='cli'):
-        graph = cargo if package == 'cli' else core
-        if (package, feature) in visited or feature not in graph:
-            return
-        visited.add((package, feature))
-        if feature != 'default':
-            actual.add(feature)
-        for child in graph[feature]:
-            if child.startswith('saccade-core/'):
-                enable(child.split('/', 1)[1], 'core')
-            elif child in graph:
-                enable(child, package)
-    enable('default')
-    for feature in spec['features']:
-        enable(feature)
+    # doctor/capabilities report CLI cfgs, not the unified core feature set.
+    actual = feature_closure(cargo, ['default', *spec['features']])
     assert actual == set(spec['expect_features']), (name, actual ^ set(spec['expect_features']))
     assert f'saccade-{name}-' in matrix_doc, f'{name} missing from docs/install-matrix.md'
 
