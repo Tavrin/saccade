@@ -26,7 +26,9 @@ COMPRESSION_IMAGES = {f'tests/fixtures/compression-reference/{name}.png'
 TRUSTMARK_IMAGES = {f'tests/fixtures/trustmark/schema-{schema}-payload-{payload}.png'
                     for schema in range(4) for payload in range(2)}
 A11Y_IMAGES = {f'tests/fixtures/{name}.png' for name in (
-    'mixed-red', 'mixed-strokes', 'local-background-245', 'mostly-low-ui', 'real-font-dpr2')}
+    'mixed-red', 'mixed-strokes', 'local-background-245', 'mostly-low-ui', 'real-font-dpr2',
+    'control-good', 'control-bad')} | {f'tests/fixtures/{name}.jpg' for name in (
+    'control-bad-q75', 'near-threshold-q75')}
 PRINT_IMAGES = {'tests/fixtures/constant-cmyk.jpg'}
 
 
